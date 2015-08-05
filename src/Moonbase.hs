@@ -2,10 +2,11 @@ module Moonbase
   ( moonbase
   , verbose
   , signal
-  , on
+  , warn, say, success
   , module Moonbase.Core
   , module Moonbase.DBus
   , module Moonbase.Pipe
+  , runMoonbaseAction
   ) where
 
 import           Control.Applicative
@@ -24,13 +25,13 @@ import           Options.Applicative            hiding (action)
 import           System.Directory
 import           System.FilePath.Posix
 import           System.IO
-import           System.Locale
+--import           System.Locale
 --import System.Environment
 --import System.Environment.XDG.DesktopEntry
 import           System.Environment.XDG.BaseDir
 
 import qualified Data.Map                       as M
-import           Data.Maybe
+--import           Data.Maybe
 import           Data.Time.Format
 import           Data.Time.LocalTime
 
@@ -44,6 +45,25 @@ import           Moonbase.Pipe
 
 type DyreStartup = (Maybe String, Terminal, Moon ())
 
+verbose :: Moon () -> Moon ()
+verbose f = do
+  rt <- get
+  when (rt ^. options ^. isVerbose) f
+
+signal :: Signal -> Moon ()
+signal sig = do
+  s <- use signals
+  liftIO $ atomically (writeTQueue s sig)
+
+warn :: String -> Moon ()
+warn msg = signal $ SignalMessage Moonbase.Core.Warning msg
+
+say :: String -> Moon ()
+say msg = signal $ SignalMessage Moonbase.Core.Info msg
+
+success :: String -> Moon ()
+success msg = signal $ SignalMessage Moonbase.Core.Success msg
+
 moonbase :: Terminal -> Moon () -> IO ()
 moonbase term moon = Dy.wrapMain params (Nothing, term, moon)
   where
@@ -55,16 +75,6 @@ moonbase term moon = Dy.wrapMain params (Nothing, term, moon)
     , Dy.includeCurrentDirectory = True }
 
 
-verbose :: Moon () -> Moon ()
-verbose f = do
-  rt <- get
-  when (rt ^. options ^. isVerbose) f
-
-signal :: Signal -> Moon ()
-signal sig = do
-  s <- use signals
-  liftIO $ atomically (writeTQueue s sig)
-
 parseOptions :: IO Options
 parseOptions = execParser full
   where
@@ -75,13 +85,13 @@ parseOptions = execParser full
       <$> switch (  long "verbose"
                  <> help "Print verbose messages to stdout" )
       <*> strArgument (  metavar "ACTION"
-                      <> help actionHelp
+                      <> help actionHelp'
                       <> value "start" )
       <*> many (argument str (  metavar "ARGS..."
                              <> help argsHelp))
 
-    argsHelp   ="Arguments for a action. Show action help by help ACTION"
-    actionHelp = "Run specified action. Show all commands available with list-actions"
+    argsHelp    ="Arguments for a action. Show action help by help ACTION"
+    actionHelp' = "Run specified action. Show all commands available with list-actions"
 
 getHome :: IO FilePath
 getHome = (</>) <$> getUserConfigDir <*> pure "moonbase"
@@ -127,19 +137,19 @@ basicActions = do
       actions' <- use actions
       return $ unlines $ map toLine (M.toList actions')
 
-    on ("RunAction", "run-action") helpRunAction $ \(name:args) -> do
+    on ("RunAction", "run-action") helpRunAction $ \(name:args') -> do
       liftIO $ putStrLn $ "Running action: " ++ name
       actions' <- use actions
       case actions' ^? ix name of
         Nothing -> return $ "Command `" ++ name ++ "` not found."
-        Just action'  -> runAction action' args
+        Just action'  -> runAction action' args'
 
   where
     helpQuit        = "Quit moonbase"
     helpListActions = "Lists all available actions. Use list-actions <group> if you want only a list about a action group"
     helpRunAction   = "Run a action"
 
-    toLine (key, (MoonbaseAction _ help _)) = key ++ " - " ++ help
+    toLine (key, (MoonbaseAction _ help' _)) = key ++ " - " ++ help'
 
 
 runMoonbase :: Options -> Terminal -> Moon () -> IO ()
@@ -171,7 +181,7 @@ runMoonbase opts term moon = do
       loop s r h
 
 
-runMoonbaseAction :: Name -> [String] -> IO ()
+runMoonbaseAction :: Name -> [String] -> IO (Maybe String)
 runMoonbaseAction name args' = do
     client <- connectSession
 
@@ -181,7 +191,9 @@ runMoonbaseAction name args' = do
 
     let (Just reply') = fromVariant (methodReturnBody reply !! 0)
 
-    when (not $ null reply') $ putStrLn reply'
+    return $ if (not $ null reply') 
+                then Just reply'
+                else Nothing
 
 realMoonbase :: DyreStartup -> IO ()
 realMoonbase (Just err, _, _)    = putStrLn $ "Could not load moonbase: " ++ err
@@ -190,4 +202,4 @@ realMoonbase (Nothing, term, moon) = do
 
     case (opts ^. cmd) of
       "start" -> runMoonbase opts term moon
-      a       -> runMoonbaseAction (opts ^. cmd) (opts ^. args)
+      a       -> maybe (return ()) (\x -> putStrLn x) =<< runMoonbaseAction a (opts ^. args)

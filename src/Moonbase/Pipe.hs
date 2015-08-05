@@ -7,7 +7,6 @@ module Moonbase.Pipe
 
 
 import Control.Monad                (when)
-import Control.Applicative          ((<$>))
 import Control.Concurrent.STM       (atomically)
 import Control.Concurrent.STM.TChan
 

@@ -63,6 +63,7 @@ library
                     Moonbase.DBus
                     Moonbase.Pipe
                     Moonbase.Theme
+                    Moonbase.Application
 --                    Moonbase.Component
 --                    Moonbase.Pipe
 --                    Moonbase.Application
@@ -85,7 +86,7 @@ library
     , directory             >= 1.2.0.1
     , process               >= 1.1.0.2
     , time                  >= 1.4.0.1
-    , old-locale            >= 1.0.0.5
+--    , old-locale            >= 1.0.0.5
     , stm                   >= 2.4.2
     , dyre                  >= 0.8.12
     , lens                  >= 4.9.1

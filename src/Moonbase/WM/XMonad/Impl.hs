@@ -16,10 +16,8 @@ module Moonbase.WM.XMonad.Impl
   ( moonbaseXMonad 
   ) where
 
-import Control.Arrow (second)
 import Data.Bits
 import Data.List ((\\))
-import Data.Function
 import qualified Data.Map as M
 import qualified Data.Set as S
 import Control.Monad.Reader
@@ -29,8 +27,6 @@ import Data.Monoid (getAll)
 
 import Foreign.C
 import Foreign.Ptr
-
-import System.Environment (getArgs)
 
 import Graphics.X11.Xlib hiding (refreshKeyboardMapping)
 import Graphics.X11.Xlib.Extras

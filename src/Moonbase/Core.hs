@@ -11,6 +11,9 @@ module Moonbase.Core
   , fork
   , timeout
 
+  , Preferred(..)
+  , preferred
+
   , Message(..)
   , Signal(..)
 
@@ -22,7 +25,7 @@ module Moonbase.Core
   , mkRuntime
 
   , MoonbaseAction(..)
-  --, actionName, actionGroup, actionHelp, action
+  , actionName, actionHelp, action
 
   , Moon
   , Terminal
@@ -34,7 +37,7 @@ module Moonbase.Core
   , liftIO
   ) where
 
-import DBus hiding (Message, Signal)
+--import DBus hiding (Message, Signal)
 import DBus.Client
 
 import qualified Data.Map as M
@@ -44,17 +47,17 @@ import Control.Monad.Reader
 import Control.Monad.State
 
 import Control.Lens
-import Control.Applicative
+--import Control.Applicative
 import Control.Monad.STM (atomically)
 import Control.Concurrent.STM.TVar
 import Control.Concurrent.STM.TQueue
 import Control.Concurrent
 
 import qualified System.Timeout as T
-import Data.Monoid
+import System.Environment.XDG.DesktopEntry
+--import Data.Monoid
 
-
-type Name = String
+type Name       = String
 type DBusClient = Client
 
 
@@ -91,7 +94,16 @@ timeout :: Int -> Moonbase st a -> Moonbase st (Maybe a)
 timeout t f = do
   rt <- ask
   liftIO $ T.timeout t (eval rt f)
-  
+
+class Executable e where
+  execGetName :: e -> Name
+  exec        :: e -> IO ()
+
+instance Executable DesktopEntry where
+    execGetName d = getName d
+    exec d        = void $ execEntry d
+
+data Preferred = forall a. (Executable a) => Preferred (M.Map String a)
 
 data Message = Warning
                  | Info
@@ -138,7 +150,7 @@ makeLenses ''MoonbaseAction
 data Runtime = Runtime
   { _dbus     :: DBusClient
   , _options  :: Options
---  , _prefered :: Maybe Preferred
+  , _preferred :: Maybe Preferred
 --  , _hooks    :: M.Map Name Hook
   , _signals  :: TQueue Signal
   , _terminal :: Maybe String -> Moonbase Runtime String
@@ -157,5 +169,5 @@ mkRuntime dbusClient opts term = do
     runtime <- atomically $ newTVar (new sigs)
     return (sigs, runtime)
   where
-    new sigs = Runtime dbusClient opts sigs term M.empty
+    new sigs = Runtime dbusClient opts Nothing sigs term M.empty
 

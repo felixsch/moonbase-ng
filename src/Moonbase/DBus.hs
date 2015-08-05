@@ -2,7 +2,6 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
-{-# LANGUAGE OverlappingInstances #-}
 
 module Moonbase.DBus
   ( moonbaseBusName
@@ -24,7 +23,6 @@ module Moonbase.DBus
   , withoutHelp
   ) where
 
-import Control.Applicative
 import Control.Monad.Reader
 import Control.Monad.State
 import Control.Lens
@@ -32,7 +30,6 @@ import Control.Concurrent.STM.TVar
 import DBus.Client
 import DBus
 
-import Data.Maybe
 import Data.Char (toLower)
 import qualified Data.Map as M
 
@@ -68,11 +65,11 @@ dbusMethod_ :: (Ref -> [Method]) -> Moon ()
 dbusMethod_ = dbusMethod moonbaseObjectPath
 
 dbusSignal :: MatchRule -> (DBusSignal -> Moon ()) -> Moon SignalHandler
-dbusSignal match cmd = do
+dbusSignal match cmd' = do
     client <- view dbus <$>  get
     ref <- ask
     liftIO $ addMatch client match $ \sig ->
-      eval ref (cmd sig)
+      eval ref (cmd' sig)
 
 autoM_ :: AutoMethod fn => MemberName -> fn -> Method
 autoM_ = autoMethod moonbaseInterfaceName
@@ -155,20 +152,19 @@ dbusM ref iface name f = method iface name inSig outSig mo
                             Just io -> fmap replyReturn io
 
     invalidParams = errorName_ "org.freedesktop.DBus.Error.InvalidParameters"
-    invalid label = error (concat
-		[ "Method "
-		, formatInterfaceName iface
-		, "."
-		, formatMemberName name
-		, " has an invalid "
-		, label
-		, " signature."])
+    invalid label = error (concat [ "Method "
+                          , formatInterfaceName iface
+                          , "."
+                          , formatMemberName name
+                          , " has an invalid "
+                          , label
+                          , " signature."])
 
 toMethod :: Ref -> Action -> Method
 toMethod ref (MoonbaseAction name _ f) = dbusM ref (withInterface "Action") (memberName_ name) f
 
 runAction :: Action -> [String] -> Moon String
-runAction (MoonbaseAction _ _ f) args = f args
+runAction (MoonbaseAction _ _ f) args' = f args'
 
 class Nameable a where
   prepareName :: a -> (Name, Name)

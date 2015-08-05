@@ -5,16 +5,19 @@
 
 module Moonbase.WM.XMonad where
 
-import           Control.Applicative
+--import           Control.Applicative
+
+import           Control.Lens
 import           Control.Concurrent
 import           Control.Monad.State
 
-import           Data.Maybe
+--import           Data.Maybe
 import           Data.Monoid
 
 import qualified Data.Map                     as M
 
 import           Moonbase
+
 import           Moonbase.Theme
 import           Moonbase.WM.XMonad.Impl
 
@@ -29,114 +32,124 @@ import           XMonad                       hiding (xmonad)
 import           XMonad.Hooks.DynamicLog
 import           XMonad.Hooks.EwmhDesktops
 import           XMonad.Hooks.ManageDocks
-import           XMonad.Layout
-import           XMonad.Layout.Circle
+--import           XMonad.Layout
+--import           XMonad.Layout.Circle
 import           XMonad.Layout.GridVariants
-import           XMonad.Layout.LayoutModifier
-import           XMonad.Layout.NoBorders
-import           XMonad.Layout.Spacing
-import           XMonad.Operations
+--import           XMonad.Layout.LayoutModifier
+--import           XMonad.Layout.NoBorders
+--import           XMonad.Layout.Spacing
+--import           XMonad.Operations
 import qualified XMonad.StackSet              as SS
 
 import           XMonad.Actions.CopyWindow
 
 
+import XMonad.Util.EZConfig
 
 
-withXMonad :: forall l. (LayoutClass l Window, Read (l Window)) =>
-              ComponentM (Maybe ThreadId) (XConfig l)
-            -> Moonbase ()
 
-withXMonad genConfig  = withComponent High "xmonad" $
-    newComponent Nothing $ do
-        config <- genConfig
-        thread <- liftIO $ forkIO $ moonbaseXMonad config
-        put (Just thread)
+data XMonad = XMonad
+  { workspaces :: [String]
+  , threadId   :: ThreadId }
 
 
-simple_ gen = do
-        rt <- moon $ get
-        return $ moonX $ gen (Moonbase.terminal $ Moonbase.config $ rt) (dbus rt)
 
-basic_ = default_ id
+withXMonad :: (LayoutClass l Window, Read (l Window))
+           => Moon (XConfig l)
+           -> Moon XMonad
 
-default_ f = do
-    dbus  <- dbus <$> rt
-    theme <- theme <$> rt
-    term  <- Moonbase.terminal . Moonbase.config <$> rt
+withXMonad generator  = do
+        generated <- generator
+        thread <- liftIO $ forkIO $ moonbaseXMonad generated
+        return $ XMonad (XMonad.workspaces generated) thread
 
-    return $ f $ moonX $ defaultConfig
-        { modMask       = mod1Mask
-        , borderWidth   = 2
-        , logHook       = dynamicLogWithPP (prettyPrinter theme dbus)
-        , layoutHook    = spacing 1 $ (Circle ||| Mirror tiled ||| tiled ||| noBorders Full)
-        , XMonad.terminal      = term
-        , mouseBindings = mouse
-        , normalBorderColor = color_ $ disabledC theme
-        , focusedBorderColor = color_ $ hlC1 theme
-        , keys          = \x -> M.union (M.fromList (keys' term x)) (keys defaultConfig x)
-        , workspaces    = ws }
-  where
-      rt      = moon $ get
-      tiled   = Tall 1 (3/100) (1/2)
-      bold' c = pangoColor' (color_ c) . wrap "<b>" "</b>" . pangoSanitize'
-      prettyPrinter theme dbus = defaultPP
-          { ppOutput  = dbusPPOutput dbus
-          , ppTitle   = pangoSanitize'
-          , ppCurrent = bold' (activeC theme)
-          , ppVisible = bold' (normalC theme)
-          , ppHidden  = bold' (normalC theme)
-          , ppUrgent  = bold' (hlC2 theme)
-          , ppLayout  = const ""
-          , ppSep     = "  ~  "
-          }
-      ws = map show [1..9]
+withDefaultXMonad :: (Theme t) => t -> Moon XMonad
+withDefaultXMonad theme = withXMonad (basicXMonadConfig theme)
 
-      mouse (XConfig {XMonad.modMask = modMask}) = M.fromList
-        [ ((modMask, button1), \w -> focus w >> mouseMoveWindow w)
-        , ((modMask, button2), \w -> focus w >> windows SS.swapMaster)
-        , ((modMask, button3), \w -> focus w >> mouseResizeWindow w) ]
 
-      keys' term conf@(XConfig {XMonad.modMask = modMask}) =
-        [ ((modMask,                  xK_Return ), spawn term)
-        , ((modMask .|. controlMask,  xK_x      ), kill1)
-        , ((modMask,                  xK_t      ), withFocused $ windows . SS.sink)
-        , ((modMask .|. shiftMask,    xK_equal  ), sendMessage $ IncMasterCols 1)
-        , ((modMask .|. shiftMask,    xK_minus  ), sendMessage $ IncMasterCols (-1))
-        , ((modMask .|. controlMask,  xK_equal  ), sendMessage $ IncMasterRows 1)
-        , ((modMask .|. controlMask,  xK_minus  ), sendMessage $ IncMasterRows (-1))
-        ] ++
-          [((m .|. modMask, k), windows $ f i)
-            | (i, k) <- zip (XMonad.workspaces conf) [xK_1 .. xK_9]
-            , (f, m) <- [(SS.greedyView, 0), (SS.shift, shiftMask)]
-            ]
+dbusTerminalCall :: String
+dbusTerminalCall = "dbus-send ..."
 
--- moonXMonad :: forall l. (LayoutClass l Window, Read (l Window)) => XConfig l -> XConfig l
-moonX conf = conf
-  { manageHook          = manageMoonbase <+> manageHook conf <+> manageDocks
-  , handleEventHook     = handleEventHook conf <+> ewmhDesktopsEventHook
-  , startupHook         = startupHook conf <+> ewmhDesktopsStartup
-  , layoutHook          = noBorderOn "MoonbasePrompt" $ avoidStruts $ layoutHook conf }
-  where
-    x <+> y = mappend x y
-    tiled   = Tall 1 (3/100) (1/2)
 
-    manageMoonbase = composeAll
-      [ stringProperty "WM_WINDOW_ROLE" =? "MoonbasePrompt" --> doFloat
-      , className =? "moonbase-test" --> doFloat ]
+basicMoonbaseHooks dbus theme conf = conf
+  { manageHook      = manageHook conf <> manageDocks
+  , handleEventHook = ewmhDesktopsEventHook <> handleEventHook conf
+  , startupHook     = ewmhDesktopsStartup <> startupHook conf
+  , layoutHook      = avoidStruts $ layoutHook conf
+  , logHook         = ewmhDesktopsLogHook <> dbusPanelLog theme dbus <> logHook conf }
 
-dbusPP :: DBus.Client -> PP
-dbusPP dbus = defaultPP { ppOutput = dbusPPOutput dbus }
 
-dbusPPOutput :: DBus.Client -> String -> IO ()
-dbusPPOutput dbus str = DBus.emit dbus signal
+basicXMonadConfig theme = do
+  client <- use dbus
+  return $ basicMoonbaseHooks client theme $ XMonad.defaultConfig 
+    { XMonad.terminal    = dbusTerminalCall
+    , XMonad.workspaces  = map show [1..5]
+    , borderWidth        = 2
+    , mouseBindings      = defaultMouseBindings
+    , keys               = keyBinding
+    , normalBorderColor  = color $ getNormal theme
+    , focusedBorderColor = color $ getHighlight theme }
     where
-        signal    = (DBus.signal path interface member) { DBus.signalBody = [body] }
+      keyBinding conf = M.union 
+        (defaultKeyBindings conf)
+        (keys defaultConfig conf)
+
+
+
+defaultKeyBindings :: XConfig l -> M.Map (KeyMask, KeySym) (X ())
+defaultKeyBindings conf@(XConfig {XMonad.modMask = mask}) = ( mkKeymap conf $
+  [ ("M-<Return>", void $ callMoonbase "spawn" ["terminal"])
+  , ("M-C-x", kill1)
+  , ("M-t", withFocused $ windows . SS.sink)
+  , ("M-v", sendMessage $ IncMasterCols 1)
+  , ("M-s", sendMessage $ IncMasterRows 1)
+  , ("M-S-v", sendMessage $ IncMasterCols (-1))
+  , ("M-S-s", sendMessage $ IncMasterRows (-1))] )
+  `M.union`
+    workspaceKeys
+  where
+    workspaceKeys = M.fromList $
+      [ ((m .|. mask, k), windows $ f i)
+       | (i, k) <- zip (XMonad.workspaces conf) [xK_1 .. xK_9]
+       , (f, m) <- [(SS.greedyView, 0), (SS.shift, shiftMask)]
+      ]
+
+
+defaultMouseBindings :: XConfig l -> M.Map (ButtonMask, Button) (Window -> X ())
+defaultMouseBindings (XConfig {XMonad.modMask = mask}) = M.fromList
+  [ ((mask, button1), \w -> focus w >> mouseMoveWindow w)
+  , ((mask, button2), \w -> focus w >> windows SS.swapMaster)
+  , ((mask, button3), \w -> focus w >> mouseResizeWindow w) ]
+
+
+
+
+callMoonbase :: Name -> [String] -> X (Maybe String)
+callMoonbase action' args' = liftIO $ runMoonbaseAction action' args'
+    
+
+dbusPanelLog :: (Theme t) => t -> DBusClient -> X ()
+dbusPanelLog theme client = dynamicLogWithPP pretty
+  where
+    pretty = defaultPP
+      { ppOutput  = dbusPPOutput client
+      , ppTitle   = pangoSanitize'
+      , ppCurrent = withColor (getActive theme)
+      , ppVisible = withColor (getNormal theme)
+      , ppHidden  = withColor (getNormal theme)
+      , ppUrgent  = withColor (getHighlight theme)
+      , ppLayout  = const ""
+      , ppSep     = "  ~  "
+      }
+
+dbusPPOutput :: DBusClient -> String -> IO ()
+dbusPPOutput client str = DBus.emit client signal'
+    where
+        signal'   = (DBus.signal path interface member) { DBus.signalBody = [body] }
         path      = DBus.objectPath_ "/org/moonbase/XMonadLog"
         interface = DBus.interfaceName_ "org.moonbase.XMonadLog"
         member    = DBus.memberName_ "Update"
         body      = DBus.toVariant $ Utf8.decodeString str
-
 
 pangoColor' :: String -> String -> String
 pangoColor' fg str = left ++ str ++ right
@@ -154,29 +167,5 @@ pangoSanitize' = foldr sanitize ""
     sanitize x xs = x:xs
 
 
-data NoBorderOnRole a = NoBorderOnRole String [a] deriving (Show, Read)
-
-instance LayoutModifier NoBorderOnRole Window where
-    unhook (NoBorderOnRole _ s) = asks (borderWidth . XMonad.config) >>= setBorders s
-
-    redoLayout (NoBorderOnRole role s) _ _ wrs = do
-        bw <- borderWidth . XMonad.config <$> ask
-
-        setBorders ws 0
-        withDisplay $ \d -> void $ forM ws $ \w -> do
-            XMonad.io $ putStrLn $ "run on window = " ++ show w
-            hasRole <- runQuery (stringProperty "WM_WINDOW_ROLE" =? role) w
-            if hasRole
-               then XMonad.io $ putStrLn "  >> has Role"
-               else XMonad.io $ setWindowBorderWidth d w bw >> (putStrLn "  !! no role")
-        return (wrs, Just (NoBorderOnRole role ws))
-     where
-       ws = map fst wrs
-
-
-noBorderOn :: (LayoutClass l Window) => String -> l Window -> ModifiedLayout NoBorderOnRole l Window
-noBorderOn role = ModifiedLayout $ NoBorderOnRole role []
-
-setBorders :: [Window] -> Dimension -> X ()
-setBorders ws bw = withDisplay $ \d -> mapM_ (\w -> XMonad.io $ setWindowBorderWidth d w bw) ws
-
+withColor :: Style -> String -> String
+withColor (Style c _ _) = pangoColor' c

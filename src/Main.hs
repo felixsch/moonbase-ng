@@ -3,7 +3,7 @@ import Moonbase
 
 
 xterm :: Terminal
-xterm (Just args) = return $ "term: " ++ args
+xterm (Just args') = return $ "term: " ++ args'
 xterm Nothing     = return "plain term"
 
 main :: IO ()
