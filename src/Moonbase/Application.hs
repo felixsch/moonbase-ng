@@ -27,6 +27,7 @@ import System.Environment.XDG.MimeApps
 import System.Process (spawnProcess, ProcessHandle)
 import System.Directory (findExecutable)
 
+import Moonbase.Core
 
 -- | An argument
 type Argument = String
@@ -42,22 +43,8 @@ app exec = Application exec []
 appWith :: String -> [Argument] -> Application
 appWith = Application
 
--- | Defines basic operation which every executable type shoudl inherit
-class Executable a where
-    execGetName :: a -> String      -- ^ get the name of the executable
-    execGetPath :: a -> FilePath    -- ^ get the path to the executable (or just the plain name)
-    exec        :: a -> IO ()       -- ^ run the executable
-
-instance Executable DesktopEntry where
-    execGetName d = getName d
-    execGetPath d = case getExec d of
-                         Just e  -> e
-                         Nothing -> getName d
-    exec d        = void $ execEntry d
-
 instance Executable Application where
     execGetName (Application app _) = takeBaseName app
-    execGetPath (Application app _) = app
     exec app                        = void $ spawn app
 
 

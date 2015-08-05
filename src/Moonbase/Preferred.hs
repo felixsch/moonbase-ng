@@ -1,27 +1,3 @@
-{-|
-Module      : Moonbase.Util.Application
-Copyright   : (c) Felix Schnizlein, 2014
-License     : GPL-2
-Maintainer  : felix@none.io
-Stability   : experimental
-Portability : POSIX
-
-Implements the preferred mechanism of moonbase
-
-Example:
-
-> main :: IO ()
-> main = moonbase myConfig $ do
->     setTheme myTheme
->     withPreferred [ mimeImages              ==> app "gimp"
->                   , mimeVideos <> mimeAudio ==> app "vlc"
->                   , mimeSources <> mimeTxt  ==> terminal "vim" ]
->     ...
-
--}
-
-{-# LANGUAGE ExistentialQuantification #-}
-
 module Moonbase.Preferred
     ( Mimetypes(..)
     , mime
@@ -30,9 +6,6 @@ module Moonbase.Preferred
     , (==>)
     , makePreferred
     , userMimeApps
-    , Application(..)
-    , app
-    , appWith
     
     , mimeImage
     , mimeImageTypes
@@ -60,8 +33,8 @@ module Moonbase.Preferred
     , mimeOpenDocuments
     ) where 
 
+import Control.Lens hiding ((<.>))
 import Prelude hiding (foldl)
-import Control.Applicative
 import Control.Monad.State
 
 import System.Directory
@@ -76,8 +49,8 @@ import Data.Foldable
 
 import qualified Data.Map as M
 
-import Moonbase
-import Moonbase.Util.Application
+import Moonbase.Core
+import Moonbase.Signal
 
 -- | A list of mimetypes
 data Mimetypes = Mimetypes [String]
@@ -92,26 +65,28 @@ mime :: String -> Mimetypes
 mime t = Mimetypes [t]
 
 -- | Appends the preferred types to the moonbase configuration
-withPreferred :: forall a. (Executable a) => [(Mimetypes, a)] -> Moonbase ()
-withPreferred prefs = modify (\rt -> rt { preferred = value })
+withPreferred :: (Executable a) => [(Mimetypes, a)] -> Moon ()
+withPreferred prefs = preferred .= value
   where
       value = if null prefs
                  then Nothing
                  else (Just $ makePreferred prefs)
 
 -- | Generate a tuple of Mimetypes and a executable
-(==>) :: forall a. (Executable a) => Mimetypes -> a -> (Mimetypes, a)
-mime ==> exec = (mime, exec)
+(==>) :: (Executable a) => Mimetypes -> a -> (Mimetypes, a)
+mime' ==> exec' = (mime', exec')
 
 -- | Synonym for Map.fromList for preferred 
-makePreferred :: forall a. (Executable a) => [(Mimetypes, a)] -> Preferred
+makePreferred :: (Executable a) => [(Mimetypes, a)] -> Preferred
 makePreferred prefs = Preferred $ genMap prefs M.empty
 
 -- | generates a Map.Map from a list of (mimetypes, executables) tuples
-genMap :: forall a. (Executable a) => [(Mimetypes, a)] -> M.Map String a -> M.Map String a
-genMap ((Mimetypes xt, exec) : xs) m = genMap xs $ addEachMime exec xt m
+genMap :: (Executable a) => [(Mimetypes, a)] -> M.Map String a -> M.Map String a
+genMap []                           _ = M.empty
+genMap ((Mimetypes xt, exec') : xs) m = genMap xs $ addEachMime exec' xt m
   where
-      addEachMime exec (x:xs) m = addEachMime exec xs $ M.insert x exec m
+      addEachMime _      []     _  = M.empty
+      addEachMime exec'' (y:ys) m' = addEachMime exec'' ys $ M.insert y exec'' m'
 
 -- | get mimeapps files
 userMimeApps :: IO FilePath
@@ -121,55 +96,52 @@ userMimeApps
         return $ dir </> "applications" </> "mimeapps.list"
 
 -- | set preferred 
-setPreferred' :: Moonbase ()
+setPreferred' :: Moon ()
 setPreferred' = do
-    rt       <- get
-    mimeApps <- loadMimeApps'
-    case preferred rt of
+    preferred'   <- use preferred
+    mimeApps     <- loadMimeApps'
+    case preferred' of
          Nothing    -> return ()
          Just prefs -> do
              path     <- liftIO $ userMimeApps
-             mimeApps <- update mimeApps prefs
-             liftIO $ saveMimeApps path mimeApps
+             mimeApps' <- update mimeApps prefs
+             liftIO $ saveMimeApps path mimeApps'
 
     where
-        update :: MimeApps -> Preferred -> Moonbase MimeApps
         update apps (Preferred m) = foldlMWithKey (updateMime ) apps m
 
         foldlMWithKey f z = foldlM (\z' (k,v) -> f z' k v) z . M.toAscList
             
 
 
-        desktopFileName :: (Executable a) => a -> Moonbase FilePath
-        desktopFileName exec = do
+        desktopFileName exec' = do
             userDir <- liftIO $ getUserDataDir
-            return $ userDir </> "applications" </> execGetName exec <.> "desktop"
+            return $ userDir </> "applications" </> execGetName exec' <.> "desktop"
 
-        updateMime :: (Executable a) => MimeApps -> String -> a -> Moonbase MimeApps
-        updateMime mimeApps mime exec = do
-            entryExists <- liftIO $ findEntry (execGetName exec)
+        updateMime mimeApps' mime' exec' = do
+            entryExists <- liftIO $ findEntry (execGetName exec')
 
             when (isNothing entryExists) $ do
-                   path <- desktopFileName exec
+                   path <- desktopFileName exec'
                    liftIO $ saveEntry $
-                     newBasicApplication path (execGetName exec) (execGetPath exec)
+                     newBasicApplication path (execGetName exec') (execGetPath exec')
 
-            return $ addDefault mime (execGetName exec <.> "desktop") mimeApps
+            return $ addDefault mime' (execGetName exec' <.> "desktop") mimeApps'
 
 -- | load existing mimeApps file
-loadMimeApps' :: Moonbase MimeApps
+loadMimeApps' :: Moon MimeApps
 loadMimeApps' = do
-    dir <- io getUserDataDir
-    io $ createDirectoryIfMissing True (dir ++ "/applications")
+    dir <- liftIO getUserDataDir
+    liftIO $ createDirectoryIfMissing True (dir ++ "/applications")
 
-    exists <- io $ doesFileExist (dir ++ "/applications/mimeapps.list")
+    exists <- liftIO $ doesFileExist (dir ++ "/applications/mimeapps.list")
 
     if exists 
        then do
-           push (Info "Loading mimeapps file...")
-           io (loadMimeApps $ dir ++ "/applications/mimeapps.list")
+           say "Loading mimeapps file..."
+           liftIO (loadMimeApps $ dir ++ "/applications/mimeapps.list")
            else
-           push (Info "MimeApps doesn't exists: creating newone")
+           say "MimeApps doesn't exists: creating newone"
            >> return newMimeApps  
 
 -- | Create a new image/* mimetype
@@ -205,6 +177,7 @@ mimeAudio :: String -> Mimetypes
 mimeAudio audio = Mimetypes ["audio/" ++ audio]
 
 -- | Common audio mime names
+mimeAudioTypes :: [String]
 mimeAudioTypes = [ "x-wav", "x-ms-wma", "x-mpegurl", "x-flac", "webm", "ogg"
                  , "mpeg", "mp4", "midi" ]
 

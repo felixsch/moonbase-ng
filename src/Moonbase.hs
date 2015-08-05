@@ -6,6 +6,8 @@ module Moonbase
   , module Moonbase.Core
   , module Moonbase.DBus
   , module Moonbase.Pipe
+  , module Moonbase.Preferred
+  , module Moonbase.Application
   , runMoonbaseAction
   ) where
 
@@ -38,31 +40,15 @@ import           Data.Time.LocalTime
 import           DBus                           hiding (Signal, signal)
 import           DBus.Client
 
+import           Moonbase.Signal
 import           Moonbase.Core
 import           Moonbase.DBus
 import           Moonbase.Pipe
+import           Moonbase.Preferred
+import           Moonbase.Application
 
 
 type DyreStartup = (Maybe String, Terminal, Moon ())
-
-verbose :: Moon () -> Moon ()
-verbose f = do
-  rt <- get
-  when (rt ^. options ^. isVerbose) f
-
-signal :: Signal -> Moon ()
-signal sig = do
-  s <- use signals
-  liftIO $ atomically (writeTQueue s sig)
-
-warn :: String -> Moon ()
-warn msg = signal $ SignalMessage Moonbase.Core.Warning msg
-
-say :: String -> Moon ()
-say msg = signal $ SignalMessage Moonbase.Core.Info msg
-
-success :: String -> Moon ()
-success msg = signal $ SignalMessage Moonbase.Core.Success msg
 
 moonbase :: Terminal -> Moon () -> IO ()
 moonbase term moon = Dy.wrapMain params (Nothing, term, moon)

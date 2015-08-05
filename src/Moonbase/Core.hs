@@ -12,6 +12,7 @@ module Moonbase.Core
   , timeout
 
   , Preferred(..)
+  , Executable(..)
   , preferred
 
   , Message(..)
@@ -95,12 +96,18 @@ timeout t f = do
   rt <- ask
   liftIO $ T.timeout t (eval rt f)
 
-class Executable e where
-  execGetName :: e -> Name
-  exec        :: e -> IO ()
+
+-- | Defines basic operation which every executable type shoudl inherit
+class Executable a where
+    execGetName :: a -> String      -- ^ get the name of the executable
+    execGetPath :: a -> FilePath    -- ^ get the path to the executable (or just the plain name)
+    exec        :: a -> IO ()       -- ^ run the executable
 
 instance Executable DesktopEntry where
     execGetName d = getName d
+    execGetPath d = case getExec d of
+                         Just e  -> e
+                         Nothing -> getName d
     exec d        = void $ execEntry d
 
 data Preferred = forall a. (Executable a) => Preferred (M.Map String a)
