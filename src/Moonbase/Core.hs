@@ -101,14 +101,14 @@ timeout t f = do
 class Executable a where
     execGetName :: a -> String      -- ^ get the name of the executable
     execGetPath :: a -> FilePath    -- ^ get the path to the executable (or just the plain name)
-    exec        :: a -> IO ()       -- ^ run the executable
+    exec        :: (MonadIO m) => a -> m ()       -- ^ run the executable
 
 instance Executable DesktopEntry where
     execGetName d = getName d
     execGetPath d = case getExec d of
                          Just e  -> e
                          Nothing -> getName d
-    exec d        = void $ execEntry d
+    exec d        = void $ liftIO $ execEntry d
 
 data Preferred = forall a. (Executable a) => Preferred (M.Map String a)
 
@@ -160,7 +160,7 @@ data Runtime = Runtime
   , _preferred :: Maybe Preferred
 --  , _hooks    :: M.Map Name Hook
   , _signals  :: TQueue Signal
-  , _terminal :: Maybe String -> Moonbase Runtime String
+  , _terminal :: Maybe String -> Moonbase Runtime ()
   , _actions  :: M.Map String (MoonbaseAction Runtime)
   }
 
@@ -168,7 +168,7 @@ makeLenses ''Runtime
 
 type Action     = MoonbaseAction Runtime
 type Moon a     = Moonbase Runtime a
-type Terminal   = (Maybe String -> Moon String)
+type Terminal   = (Maybe String -> Moon ())
 
 mkRuntime :: DBusClient -> Options -> Terminal -> IO (TQueue Signal, TVar Runtime)
 mkRuntime dbusClient opts term = do

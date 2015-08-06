@@ -172,4 +172,5 @@ executable moonbase
     build-depends: 
        xmonad            >= 0.11
      , xmonad-contrib    >= 0.11.3
-  
+     , utf8-string       >= 0.3.8 
+     , X11               >= 1.6.1.1

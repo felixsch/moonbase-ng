@@ -130,8 +130,16 @@ basicActions = do
         Nothing -> return $ "Command `" ++ name ++ "` not found."
         Just action'  -> runAction action' args'
 
+    on "Spawn" helpSpawn $ \(name:args') -> do
+      call <- use terminal
+      case name of
+        "terminal" -> call Nothing
+        _          -> warn $ "Invalid application \"" ++ name ++ "\""
+      return ""
+
   where
     helpQuit        = "Quit moonbase"
+    helpSpawn       = "Spawn a moonbase application [Apps available: terminal]"
     helpListActions = "Lists all available actions. Use list-actions <group> if you want only a list about a action group"
     helpRunAction   = "Run a action"
 
@@ -140,12 +148,18 @@ basicActions = do
 
 runMoonbase :: Options -> Terminal -> Moon () -> IO ()
 runMoonbase opts term moon = do
-    setupHomeDirectory
 
+    putStrLn "Starting moonbase..."
+    setupHomeDirectory
+    
+    putStrLn "Opening log..."
     handle <- openLog
+    putStrLn "Start dbus..."
     client   <- startDBus
+    putStrLn "Make Runtime..."
     (sigs,runtime) <- mkRuntime client opts term
 
+    putStrLn "Run basic actions and user implementation..."
     eval runtime (basicActions >> moon)
     loop sigs runtime handle
     return ()
@@ -185,7 +199,7 @@ realMoonbase :: DyreStartup -> IO ()
 realMoonbase (Just err, _, _)    = putStrLn $ "Could not load moonbase: " ++ err
 realMoonbase (Nothing, term, moon) = do
     opts <- parseOptions
-
+    liftIO $ print opts
     case (opts ^. cmd) of
       "start" -> runMoonbase opts term moon
       a       -> maybe (return ()) (\x -> putStrLn x) =<< runMoonbaseAction a (opts ^. args)

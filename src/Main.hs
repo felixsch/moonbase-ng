@@ -1,10 +1,17 @@
 
 import Moonbase
+import Moonbase.Theme
+import Moonbase.WM.XMonad
 
 
-xterm :: Terminal
-xterm (Just args') = return $ "term: " ++ args'
-xterm Nothing     = return "plain term"
+term :: Terminal
+term (Just args') = exec $ appWith "gnome-terminal" [args']
+term Nothing     = exec $ app "gnome-terminal"
 
 main :: IO ()
-main = moonbase xterm $ return ()
+main = moonbase term $ do
+  xmonad <- withDefaultXMonad defaultTheme
+  exec $ app "gnome-terminal"
+  exec $ app "d-feet"
+  
+  return ()
