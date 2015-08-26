@@ -7,6 +7,7 @@ module Moonbase
   , module Moonbase.DBus
   , module Moonbase.Pipe
   , module Moonbase.Preferred
+  , module Moonbase.Desktop
   , module Moonbase.Application
   , runMoonbaseAction
   ) where
@@ -19,6 +20,7 @@ import           Control.Monad.STM              (atomically)
 --import Control.Concurrent.STM.TVar
 import qualified Config.Dyre                    as Dy
 import           Control.Concurrent.STM.TQueue
+import           Control.Concurrent             (forkOS)
 
 import           Options.Applicative            hiding (action)
 --import Options.Applicative.Types
@@ -40,12 +42,15 @@ import           Data.Time.LocalTime
 import           DBus                           hiding (Signal, signal)
 import           DBus.Client
 
+import qualified Graphics.UI.Gtk as Gtk
+
 import           Moonbase.Signal
 import           Moonbase.Core
 import           Moonbase.DBus
 import           Moonbase.Pipe
 import           Moonbase.Preferred
 import           Moonbase.Application
+import           Moonbase.Desktop
 
 
 type DyreStartup = (Maybe String, Terminal, Moon ())
@@ -160,8 +165,11 @@ runMoonbase opts term moon = do
     (sigs,runtime) <- mkRuntime client opts term
 
     putStrLn "Run basic actions and user implementation..."
+    liftIO $ Gtk.initGUI
     eval runtime (basicActions >> moon)
+    liftIO $ forkOS Gtk.mainGUI
     loop sigs runtime handle
+    liftIO $ Gtk.mainQuit
     return ()
   where
     loop sigs rt hdl = do

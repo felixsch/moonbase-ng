@@ -10,7 +10,9 @@ term Nothing     = exec $ app "gnome-terminal"
 
 main :: IO ()
 main = moonbase term $ do
-  xmonad <- withDefaultXMonad defaultTheme
+  xmonad  <- withDefaultXMonad defaultTheme
+  desktop <- withDesktop $
+    onEveryMonitor $ setWallpaper "/tmp/bg1.png"
   exec $ app "gnome-terminal"
   exec $ app "d-feet"
   

@@ -75,7 +75,6 @@ library
 --                    Moonbase.Prompt
 --                    Moonbase.Desktop
 
-  pkgconfig-depends:    gtk+-3.0
   build-depends:
       base                  >= 4    && < 5
     , containers            >= 0.3  && < 0.6
@@ -96,14 +95,19 @@ library
 
 
   If flag(withGtk)
+   pkgconfig-depends:    gtk+-3.0
    build-depends:
       gtk3              >= 0.13.7
     , glib              >= 0.13.1.0
     , cairo             >= 0.13.1.0
 
---   c-sources:           set_properties.c
---
---   other-modules:       Moonbase.Gtk.StrutProperties
+   c-sources:           set_properties.c
+
+   other-modules:       Moonbase.Util.StrutProperties
+
+   exposed-modules:     Moonbase.Desktop
+                      , Moonbase.Util.Gtk
+
 --
 --   exposed-modules:       Moonbase.Desktop.Gtk
 --                        , Moonbase.Desktop.Gtk.EventField
@@ -139,7 +143,7 @@ library
   hs-source-dirs:       src
   default-language:     Haskell2010 
 
-  ghc-options: -Wall
+--  ghc-options: -Wall
 
 
 
@@ -166,7 +170,7 @@ executable moonbase
   hs-source-dirs:      src 
   default-language:    Haskell2010
 
-  ghc-options: -Wall -threaded
+  ghc-options: -threaded
 
   If flag(withXMonad)
     build-depends: 
@@ -174,3 +178,15 @@ executable moonbase
      , xmonad-contrib    >= 0.11.3
      , utf8-string       >= 0.3.8 
      , X11               >= 1.6.1.1
+
+
+  If flag(withGtk)
+   pkgconfig-depends:    gtk+-3.0
+   build-depends:
+      gtk3              >= 0.13.7
+    , glib              >= 0.13.1.0
+    , cairo             >= 0.13.1.0
+
+   c-sources:           set_properties.c
+
+   other-modules:       Moonbase.Util.StrutProperties

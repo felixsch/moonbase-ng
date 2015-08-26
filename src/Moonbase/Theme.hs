@@ -10,6 +10,7 @@ module Moonbase.Theme
   , color, font, bg
   , DefaultTheme(..)
   , defaultTheme
+  , defaultColor
   ) where
 
 
@@ -112,6 +113,9 @@ defaultTheme = DefaultTheme
   , disabled  = Style "#808080" (italic sans) defaultBg }
     where
       defaultBg = "#242424"
+
+defaultColor :: Color
+defaultColor = "#ff00ff"
 
 
 

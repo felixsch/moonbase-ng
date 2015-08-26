@@ -7,6 +7,10 @@ import Control.Concurrent.STM
 import Moonbase.Core
 
 
+isDebug :: Bool
+isDebug = True
+
+
 verbose :: Moon () -> Moon ()
 verbose f = do
   rt <- get
@@ -25,4 +29,10 @@ say msg = signal $ SignalMessage Moonbase.Core.Info msg
 
 success :: String -> Moon ()
 success msg = signal $ SignalMessage Moonbase.Core.Success msg
+
+fatal :: String -> Moon ()
+fatal msg = signal $ SignalFatalError msg
+
+debug :: String -> Moon ()
+debug msg = when isDebug $ liftIO $ putStrLn $ "[DEBUG]: " ++ msg
 
