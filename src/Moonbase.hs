@@ -9,6 +9,7 @@ module Moonbase
   , module Moonbase.Preferred
   , module Moonbase.Desktop
   , module Moonbase.Application
+  , module Moonbase.Util
   , runMoonbaseAction
   ) where
 
@@ -45,6 +46,7 @@ import           DBus.Client
 import qualified Graphics.UI.Gtk as Gtk
 
 import           Moonbase.Signal
+import           Moonbase.Util
 import           Moonbase.Core
 import           Moonbase.DBus
 import           Moonbase.Pipe

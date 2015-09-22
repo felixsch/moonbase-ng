@@ -13,17 +13,12 @@ import qualified Graphics.UI.Gtk as Gtk
 import qualified System.Glib.GError as Glib
 
 import Moonbase.Core
+import Moonbase.Util
 import Moonbase.Signal
 import Moonbase.Theme (Color)
 import Moonbase.Util.Gtk
 
 import Data.Word
-
-type Configure c a = StateT c (Moonbase Runtime) a
-
-configure :: c -> Configure c () -> Moon c
-configure toConfigure configurator = snd <$> runStateT configurator toConfigure
-
 
 
 type MonitorNum = Int
@@ -53,10 +48,6 @@ data DesktopState = DesktopState
 type Desktop = TVar DesktopState
 
 makeLenses ''DesktopState
-
-checkDisplay :: Maybe Gtk.Display -> Moon Gtk.Display
-checkDisplay Nothing     = fatal "Could not open display" >> error "Could not open display"
-checkDisplay (Just disp) = return $ disp
 
 
 initializeScreen :: Gtk.Display -> ScreenNum -> Moon Screen

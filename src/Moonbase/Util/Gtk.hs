@@ -16,7 +16,6 @@ module Moonbase.Util.Gtk
  , withDisplay
  , pangoColor
  , pangoSanitize
- , Position(..)
  , moveWindow
  , setWindowHints
  , setWindowStruts
@@ -25,29 +24,21 @@ module Moonbase.Util.Gtk
  , parseColorTuple
  , clamp
  , setStyle
+ , checkDisplay
  ) where
 
 import Control.Monad.Reader
 import Control.Applicative
-
-import Numeric (readHex)
-
-import Data.Char (isHexDigit)
 
 import qualified Graphics.UI.Gtk as Gtk
 import qualified Graphics.UI.Gtk.General.StyleContext as Gtk
 import qualified Graphics.UI.Gtk.General.CssProvider as Gtk
 
 import Moonbase.Core
+import Moonbase.Util
 import Moonbase.Signal
 import Moonbase.Theme
 import Moonbase.Util.StrutProperties
-
-
--- | Window positions
-data Position = Top -- ^ At top
-  | Bottom -- ^ At bottom
-  | Custom Int -- ^ At a custom position
 
 
 withDisplay :: (Gtk.Display -> Moon a) -> Moon (Maybe a)
@@ -147,36 +138,11 @@ getAbsoluteMousePosition scr = do
           check (Just (True, x, y, _)) = (x,y)
           check _                      = (0,0)
 
-
-
-hex :: (Eq a, Num a) => String -> a
-hex = fst . head . readHex
-
-parseColorTuple :: (Num a, Eq a) => Color -> (a, a, a, a)
-parseColorTuple   ['#',r,g,b]   = parseColorTuple ['#', r, r, g, g, b, b, 'f', 'f']
-parseColorTuple   ['#',r,g,b,a] = parseColorTuple ['#', r, r, g, g, b, b, a, a]
-parseColorTuple   ['#', r1, r2, g1, g2, b1, b2] =
-    parseColorTuple ['#', r1, r2, g1, g2, b1, b2, 'f', 'f']
-parseColorTuple c@['#', r1, r2, g1, g2, b1, b2, a1, a2]
-  | all isHexDigit (tail c) = ( hex [r1,r2],
-                                hex [g1,g2],
-                                hex [b1,b2],
-                                hex [a1,a2] )
-  | otherwise               = parseColorTuple defaultColor
-parseColorTuple _           = parseColorTuple defaultColor
-
-
 parseColorGtk :: Color -> Gtk.Color
 parseColorGtk c = Gtk.Color (imp r) (imp g) (imp b)
   where
     imp       = (*) 257
-    (r,g,b,_) = parseColorTuple c
-
-clamp :: (Eq a, Num a, Integral a, Fractional a) => (a,a,a,a) -> (Double, Double, Double, Double)
-clamp (r,g,b,a) = (cl a, cl b, cl g, cl a)
-  where
-    cl x = fromIntegral $ x / 255
-          
+    (r,g,b,_) = parseColorTuple c 
 
 
 setStyle :: (Gtk.WidgetClass widget) =>  widget -> String -> [(String, String)] -> IO ()
@@ -196,4 +162,9 @@ setStyle w name settings = do
     css = "#" ++ name ++ " {"
         ++ unwords (parsedList settings) 
         ++ "}"
+
+
+checkDisplay :: Maybe Gtk.Display -> Moon Gtk.Display
+checkDisplay Nothing     = fatal "Could not open display" >> error "Could not open display"
+checkDisplay (Just disp) = return $ disp
 
