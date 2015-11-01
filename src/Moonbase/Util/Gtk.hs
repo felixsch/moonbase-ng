@@ -29,6 +29,7 @@ module Moonbase.Util.Gtk
 
 import Control.Monad.Reader
 import Control.Applicative
+import Control.Exception
 
 import qualified Graphics.UI.Gtk as Gtk
 import qualified Graphics.UI.Gtk.General.StyleContext as Gtk
@@ -41,12 +42,14 @@ import Moonbase.Theme
 import Moonbase.Util.StrutProperties
 
 
-withDisplay :: (Gtk.Display -> Moon a) -> Moon (Maybe a)
+withDisplay :: (Gtk.Display -> Moon a) -> Moon a
 withDisplay f = do
     disp <- liftIO $ Gtk.displayGetDefault
     case disp of
-         Just d  -> Just <$> f d
-         Nothing -> fatal "Could not open display!" >> return Nothing
+         Just d  -> f d
+         Nothing -> do
+           fatal "Could not open display!"
+           liftIO $ throw CouldNotOpenDisplay
 
 
 -- | Wrapper arroung liftIO . Gtk.postGUISync

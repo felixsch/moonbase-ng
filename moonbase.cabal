@@ -24,7 +24,7 @@ library
                     , Moonbase.Desktop
                     , Moonbase.Util.Gtk
                     , Moonbase.Util.Css
-                    --, Moonbase.Panel
+                    , Moonbase.Panel
 --                    Moonbase.Component
 --                    Moonbase.Pipe
 --                    Moonbase.Application

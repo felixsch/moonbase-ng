@@ -1,0 +1,28 @@
+#!/bin/bash
+
+pid=""
+pid_moonbase=""
+
+while true; do
+    change=$(inotifywait -e close_write,moved_to,create ./dist/build/moonbase)
+   
+    echo "CHANGED : $change"
+    if [ "$change" == "./dist/build/moonbase/ CREATE moonbase" ]; then
+        if [ "x$pid_moonbase" != "x" ]; then
+            kill -9 $pid_moonbase
+            sleep 2
+        fi
+        if [ "x$pid" != "x" ]; then
+            kill -9 $pid
+            sleep 2
+        fi
+
+        Xephyr -ac -br -noreset -screen 1600x900 :7.0 &
+        pid=$!
+        
+        sleep 3
+
+        DISPLAY=:7.0 dbus-launch ./dist/build/moonbase/moonbase --verbose &
+        pid_moonbase=$!
+    fi
+done

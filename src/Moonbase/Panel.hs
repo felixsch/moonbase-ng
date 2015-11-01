@@ -8,18 +8,51 @@ import Control.Monad
 
 import Moonbase.Core
 import Moonbase.Util
+import Moonbase.Util.Gtk
+
 import Moonbase.Signal
 
 import Control.Monad.STM
 import Control.Concurrent.STM.TVar
 
 import qualified Graphics.UI.Gtk as Gtk
+import Graphics.UI.Gtk (AttrOp(..))
 
 {-
-  panel <- withPanel Top (OnMonitor 1) (xmonad --> clock <-- cpu)
-  mpdPanel <- withPanel Bottom SpanMonitors (mdpCurrentSong <> mpdVolume)
+  panel <- withPanel 20 Top (OnMonitor 1) (xmonad --> clock <-- cpu)
+  mpdPanel <- withPanel 20 Bottom SpanMonitors (mdpCurrentSong <> mpdVolume)
 -}
 
+data PanelMode = OnMonitor Int
+               | SpanMonitors
+               | OnScreen Int PanelMode
+
+instance Show PanelMode where
+  show (OnMonitor num)  = "on-monitor-" ++ show num
+  show SpanMonitors     = "span-monitor"
+  show (OnScreen num c) = "on-screen-" ++ show num ++ "-" ++ show c
+
+
+getMode :: Gtk.Display -> PanelMode -> IO (Gtk.Rectangle, Gtk.Screen)
+getMode display mode = do
+    screen <- Gtk.displayGetScreen display num
+
+    rect   <- case mode' of
+      OnMonitor x  -> Gtk.screenGetMonitorGeometry screen x
+      SpanMonitors -> Gtk.Rectangle 0 0 <$> Gtk.screenGetWidth screen 
+                                        <*> Gtk.screenGetHeight screen    
+    return (rect, screen)
+  where 
+    (num, mode') = screenNum 0 mode
+
+    screenNum _ (OnScreen x m) = screenNum x m
+    screenNum n m              = (n, m)
+ 
+
+data PanelConfig = PanelConfig
+  { panelHeight   :: Int
+  , panelPosition :: Position
+  , panelMode     :: PanelMode }
 
 data PanelItem = PanelItem 
   { _paneItemName     :: Name
@@ -29,6 +62,10 @@ data PanelItem = PanelItem
 makeLenses ''PanelItem
 
 data PanelItems = PanelItems [Configure Panel PanelItem]
+
+instance Monoid PanelItems where
+    mempty  = PanelItems []
+    mappend (PanelItems a) (PanelItems b) = PanelItems (a ++ b)
 
 item :: Configure Panel PanelItem -> PanelItems
 item gen = PanelItems [gen]
@@ -41,95 +78,71 @@ data PanelState = PanelState
 
 type Panel = TVar PanelState
 
-data PanelMode = OnMonitor Int
-               | SpanMonitors
-               | OnScreen Int PanelMode
 
-instance Show PanelMode where
-  show (OnMonitor num)  = "on-monitor-" ++ show num
-  show SpanMonitors     = "span-monitor"
-  show (OnScreen num c) = "on-screen-" ++ show num ++ "-" ++ show c
+withPanel :: PanelConfig -> PanelItems -> Moon Panel
+withPanel config items = do
+  debug "a panel"
 
-instance Monoid PanelItems where
-    mempty  = PanelItems []
-    mappend (PanelItems a) (PanelItems b) = PanelItems (a ++ b)
+  withDisplay $ \display -> do
+ 
+    (size, screen) <- liftIO $ getMode display (panelMode config)
+    window         <- liftIO $ Gtk.windowNew
 
+    liftIO $ do
 
-withPanel :: Position -> Int -> PanelMode -> PanelItems -> Moon Panel
-withPanel pos width mode items = do
-  debug $ "a panel"
-  
-  disp          <- checkDisplay =<< liftIO $ Gtk.displayGetDefault
+      Gtk.widgetSetName window $ "panel-" ++ show (panelMode config)
+                                          ++ "-"
+                                          ++ show (panelPosition config)
 
-  (Gtk.Rectangle x y w h)  <- getPanelSizes mode
-  window                   <- Gtk.windowNew
+      Gtk.windowSetScreen   window screen
+      Gtk.windowSetTypeHint window Gtk.WindowTypeHintDock
+      Gtk.windowSetGravity  window Gtk.GravityStatic
 
-  Gtk.windowSetScreen window screen
-  Gtk.windowSetName $ "panel-" ++ show mode ++ "-" ++ show pos
+      Gtk.widgetSetCanFocus window False
 
-  Gtk.windowSetTypeHint window Gtk.WindowTypeHintDock
-  Gtk.windowSetGravity window Gtk.GravityStatic
+      Gtk.set window [ Gtk.windowSkipTaskbarHint := True
+                    , Gtk.windowSkipPagerHint   := True
+                    , Gtk.windowAcceptFocus     := False
+                    , Gtk.windowDecorated       := False
+                    , Gtk.windowHasResizeGrip   := False
+                    , Gtk.windowResizable       := False ]
 
-  Gtk.widgetSetCanFocus window False
-  Gtk.widgetModifyBg 
+      setPanelSize config size window
 
+      _ <- Gtk.on screen Gtk.screenMonitorsChanged $
+        setPanelSize config size window
 
+      box <- Gtk.hBoxNew False 2
+      Gtk.containerAdd window box
 
+      Gtk.widgetShowAll window
 
+      atomically $ newTVar (PanelState items window box)
 
-     -- FIXME: Add monitor support not the whole screen!
-     scr       <- Gtk.displayGetScreen disp $ panelOnMonitor config
-     screenNum <- Gtk.displayGetNScreens disp
+    
+setPanelSize :: PanelConfig -> Gtk.Rectangle -> Gtk.Window -> IO ()
+setPanelSize config geo@(Gtk.Rectangle x y w h) window = do
 
-     win       <- Gtk.windowNew
+  Gtk.windowSetDefaultSize window w height
+  Gtk.widgetSetSizeRequest window w height
+  Gtk.windowResize         window w height
 
-     Gtk.widgetSetName win "panel"
+  moveWindow               window position geo
+  setWindowHints           window geo
 
-     Gtk.windowSetScreen   win scr
-     Gtk.windowSetTypeHint win Gtk.WindowTypeHintDock 
-     Gtk.windowSetGravity  win Gtk.GravityStatic
+  _ <- Gtk.on window Gtk.realize $ setWindowStruts window position height geo
 
-     
-     Gtk.widgetSetCanFocus win False
-     Gtk.widgetModifyBg    win Gtk.StateNormal (parseColor $ panelBg config)
-     Gtk.widgetModifyFg    win Gtk.StateNormal (parseColor $ panelFg config)
+  isRealized <- Gtk.widgetGetRealized window
 
-     Gtk.set win [ Gtk.windowSkipTaskbarHint Gtk.:= True
-                 , Gtk.windowSkipPagerHint Gtk.:= True
-                 , Gtk.windowAcceptFocus Gtk.:= False
-                 , Gtk.windowDecorated Gtk.:= False
-                 , Gtk.windowHasResizeGrip Gtk.:= False
-                 , Gtk.windowResizable Gtk.:= False ]
+  when isRealized $ setWindowStruts window position height geo
+    where
+      height   = panelHeight config
+      position = panelPosition config
 
-     setPanelSize config win
-
-     _ <- Gtk.on scr Gtk.screenMonitorsChanged $ setPanelSize config win
-
-     box <- Gtk.hBoxNew False 2
-     Gtk.containerAdd win box
-
-     return (win, box)
-
-  
+      
 
 
-
-  debug $ "with basic Desktop..."
-
-  disp       <- checkDisplay =<< liftIO Gtk.displayGetDefault
-  numScreens <- liftIO $ Gtk.displayGetNScreens disp
-
-  debug $ "  :: " ++ show numScreens ++ " screens available"
-  screens    <- mapM (initializeScreen disp) [0..(numScreens - 1)]
-
-  let state = DesktopState screens disp
-
-  state' <- configure state conf
-
-  showDesktops state'
-
-  desktop <- liftIO $ atomically $ newTVar state'
-
+{-
 getPanelSizes :: Gtk.Display -> PanelMode -> Moon Gtk.Rectangle
 getPanelSizes disp (OnScreen num conf)
   = getPanelSizes' conf =<< liftIO $ Gtk.displayGetScreen disp num
@@ -144,7 +157,7 @@ getPanelSizes' SpanMonitors screen = liftIO $ do
 getPanelSizes' (OnMonitor num) = liftIO $ Gtk.screenGetMonitorGeometry screen num
 getPanelSizes' (OnScreen _ c)  = getPanelSizes' conf screen
 
-
+-}
 
 
 

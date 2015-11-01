@@ -6,7 +6,9 @@
 {-# LANGUAGE FlexibleInstances #-}
 
 module Moonbase.Core
-  ( Moonbase(..)
+  ( MoonbaseException(..)
+
+  , Moonbase(..)
   , eval
   , fork
   , timeout
@@ -53,6 +55,7 @@ import Control.Monad.STM (atomically)
 import Control.Concurrent.STM.TVar
 import Control.Concurrent.STM.TQueue
 import Control.Concurrent
+import Control.Exception
 
 import qualified System.Timeout as T
 import System.Environment.XDG.DesktopEntry
@@ -60,6 +63,11 @@ import System.Environment.XDG.DesktopEntry
 
 type Name       = String
 type DBusClient = Client
+
+data MoonbaseException = CouldNotOpenDisplay
+  deriving (Show)
+
+instance Exception MoonbaseException
 
 
 newtype Moonbase st a = Moonbase { runMoon :: ReaderT (TVar st) IO a }
