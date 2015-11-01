@@ -43,6 +43,7 @@ module Moonbase.Core
 --import DBus hiding (Message, Signal)
 import DBus.Client
 
+import Data.Maybe
 import qualified Data.Map as M
 
 import Control.Monad
@@ -91,7 +92,7 @@ instance MonadState st (Moonbase st) where
         ref <- ask
         liftIO $ atomically $ writeTVar ref sta
 
-eval :: (TVar st) -> Moonbase st a -> IO a
+eval :: TVar st -> Moonbase st a -> IO a
 eval rt (Moonbase f) = runReaderT f rt 
 
 fork :: Moonbase st () -> Moonbase st ()
@@ -112,10 +113,8 @@ class Executable a where
     exec        :: (MonadIO m) => a -> m ()       -- ^ run the executable
 
 instance Executable DesktopEntry where
-    execGetName d = getName d
-    execGetPath d = case getExec d of
-                         Just e  -> e
-                         Nothing -> getName d
+    execGetName = getName
+    execGetPath d = fromMaybe (getName d) (getExec d)
     exec d        = void $ liftIO $ execEntry d
 
 data Preferred = forall a. (Executable a) => Preferred (M.Map String a)
@@ -157,7 +156,7 @@ makeLenses ''Options
 data MoonbaseAction st = MoonbaseAction
   { _actionName  :: Name
   , _actionHelp  :: String
-  , _action      :: ([String] -> Moonbase st String) }
+  , _action      :: [String] -> Moonbase st String }
   
 makeLenses ''MoonbaseAction
 
