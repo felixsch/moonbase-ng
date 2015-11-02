@@ -13,7 +13,8 @@ panelConfig :: PanelConfig
 panelConfig = PanelConfig 
   { panelHeight   = 20
   , panelPosition = Top
-  , panelMode     = OnMonitor 0 }
+  , panelMode     = OnMonitor 0
+  , panelStyle    = defaultTheme }
 
 main :: IO ()
 main = moonbase term $ do

@@ -7,8 +7,10 @@ import Control.Applicative
 import Control.Monad
 
 import Moonbase.Core
+import Moonbase.Theme
 import Moonbase.Util
 import Moonbase.Util.Gtk
+import Moonbase.Util.Css
 
 import Moonbase.Signal
 
@@ -52,7 +54,8 @@ getMode display mode = do
 data PanelConfig = PanelConfig
   { panelHeight   :: Int
   , panelPosition :: Position
-  , panelMode     :: PanelMode }
+  , panelMode     :: PanelMode
+  , panelStyle    :: DefaultTheme }
 
 data PanelItem = PanelItem 
   { _paneItemName     :: Name
@@ -115,9 +118,19 @@ withPanel config items = do
       box <- Gtk.hBoxNew False 2
       Gtk.containerAdd window box
 
+      withCss window $ do
+        bgColor styleBgColor
+        fgColor styleFgColor
+        
+
+
       Gtk.widgetShowAll window
 
       atomically $ newTVar (PanelState items window box)
+
+  where
+      styleBgColor = bg $ getNormal $ panelStyle config
+      styleFgColor = color $ getNormal $ panelStyle config
 
     
 setPanelSize :: PanelConfig -> Gtk.Rectangle -> Gtk.Window -> IO ()

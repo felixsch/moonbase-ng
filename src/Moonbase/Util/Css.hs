@@ -1,10 +1,14 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances #-}
 module Moonbase.Util.Css 
   ( Scope(..)
   , Id(..)
   , combine, (&)
   , RuleM(..)
-  , css, cssRules, (%), (#)
+  , css, cssRules, (%)
+  , withCss
+  , bgColor, fgColor
   ) where
 
 
@@ -14,6 +18,10 @@ import Control.Monad.Writer
 import Data.List
 import Data.Monoid
 import Data.String
+
+import qualified Graphics.UI.Gtk as Gtk
+import qualified Graphics.UI.Gtk.General.StyleContext as Gtk
+import qualified Graphics.UI.Gtk.General.CssProvider as Gtk
 
 data Scope = KleenStar
            | Class
@@ -65,9 +73,6 @@ combine p a                                 = Nested (p : [a])
 (&) :: Id -> Id -> Id
 (&) = combine
 
-type Key   = String
-type Value = String
-
 data Rule = Property String String
           | Rule Id [Rule]
           | Root [Rule]
@@ -116,8 +121,50 @@ cssRules c = rule $ Root (generate c)
 (%) :: Id -> Css -> Css
 (%) id c = rule $ Rule id (generate c)
 
-(#) :: Key -> Value -> Css
-(#) k v = rule $ Property k v
-
 css :: Css -> String
 css c = concatMap renderRule $ concatMap prepareRule (generate c)
+
+
+withCss :: (Gtk.WidgetClass widget, MonadIO m) => widget -> Css -> m ()
+withCss widget c = liftIO $ do
+  name <- Gtk.widgetGetName widget :: IO String
+  
+  provider <- Gtk.cssProviderNew 
+  context  <- Gtk.widgetGetStyleContext widget
+
+  Gtk.cssProviderLoadFromString provider $
+    css $ rule $ Rule (Id Identifier name) (generate c)
+
+  Gtk.styleContextAddProvider context provider 800
+
+
+class Colorize c where
+  renderColor :: c -> String
+
+instance Colorize String where
+  renderColor c = c
+
+colorProperty :: (Colorize color) => String -> color -> Css
+colorProperty key color = rule $ Property key (renderColor color)
+
+bgColor :: (Colorize color) => color -> Css
+bgColor = colorProperty "background-color"
+
+fgColor :: (Colorize color) => color -> Css
+fgColor = colorProperty "color"
+
+
+{-
+background-color
+background-image
+color
+border-color
+border-image
+border-radius
+border-width
+border-style
+padding
+margin
+transition -}
+
+
