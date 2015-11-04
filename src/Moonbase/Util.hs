@@ -1,7 +1,8 @@
 module Moonbase.Util
-  ( Configure(..) , configure
+  ( Configure(..) , configure, configureWith
   , Position(..)
   , parseColorTuple, clamp
+  , lift
   ) where
 
 import Control.Monad.State
@@ -16,7 +17,11 @@ import Moonbase.Theme (Color, defaultColor)
 type Configure c a = StateT c (Moonbase Runtime) a
 
 configure :: c -> Configure c () -> Moon c
-configure toConfigure configurator = snd <$> runStateT configurator toConfigure
+configure toConfigure configurator = snd <$> configureWith toConfigure configurator
+
+configureWith :: c -> Configure c a -> Moon (a,c)
+configureWith toConfigure configurator = runStateT configurator toConfigure
+
 
 data Position = Top
               | Bottom

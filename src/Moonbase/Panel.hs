@@ -20,6 +20,10 @@ import Control.Concurrent.STM.TVar
 import qualified Graphics.UI.Gtk as Gtk
 import Graphics.UI.Gtk (AttrOp(..))
 
+
+import DBus
+import DBus.Client
+
 {-
   panel <- withPanel 20 Top (OnMonitor 1) (xmonad --> clock <-- cpu)
   mpdPanel <- withPanel 20 Bottom SpanMonitors (mdpCurrentSong <> mpdVolume)
@@ -64,32 +68,35 @@ data PanelItem = PanelItem
 
 makeLenses ''PanelItem
 
-data PanelItems = PanelItems [Configure Panel PanelItem]
+data PanelItems = PanelItems [Configure PanelState PanelItem]
 
 instance Monoid PanelItems where
     mempty  = PanelItems []
     mappend (PanelItems a) (PanelItems b) = PanelItems (a ++ b)
 
-item :: Configure Panel PanelItem -> PanelItems
+item :: Configure PanelState PanelItem -> PanelItems
 item gen = PanelItems [gen]
 
 
 data PanelState = PanelState
-  { panelItems  :: PanelItems
-  , panelWindow :: Gtk.Window
-  , panelHBox   :: Gtk.HBox }
+  { _panelItems  :: [PanelItem]
+  , _panelWindow :: Gtk.Window
+  , _panelHBox   :: Gtk.HBox 
+  , _panelConfig :: PanelConfig }
+
+makeLenses ''PanelState
 
 type Panel = TVar PanelState
 
 
 withPanel :: PanelConfig -> PanelItems -> Moon Panel
-withPanel config items = do
+withPanel config (PanelItems items) = do
   debug "a panel"
 
   withDisplay $ \display -> do
  
     (size, screen) <- liftIO $ getMode display (panelMode config)
-    window         <- liftIO $ Gtk.windowNew
+    window         <- liftIO Gtk.windowNew
 
     liftIO $ do
 
@@ -110,29 +117,36 @@ withPanel config items = do
                     , Gtk.windowHasResizeGrip   := False
                     , Gtk.windowResizable       := False ]
 
-      setPanelSize config size window
-
       _ <- Gtk.on screen Gtk.screenMonitorsChanged $
         setPanelSize config size window
 
-      box <- Gtk.hBoxNew False 2
+      setPanelSize config size window
+
+    box <- liftIO $ Gtk.hBoxNew False 2
+
+    withCss window $ do
+      bgColor styleBgColor
+      fgColor styleFgColor
+
+    (items, panel) <- configureWith (PanelState [] window box config) $
+      sequence items
+
+    debug "Added panel"
+    forM_ items $ \(PanelItem n w p) -> do
+      debug $ "  - item: " ++ n
+      liftIO $ Gtk.boxPackStart box w p 0
+      
+
+  
+    liftIO $ do
       Gtk.containerAdd window box
-
-      withCss window $ do
-        bgColor styleBgColor
-        fgColor styleFgColor
-        
-
-
       Gtk.widgetShowAll window
-
-      atomically $ newTVar (PanelState items window box)
+      atomically $ newTVar $ panel { _panelItems = items }
 
   where
       styleBgColor = bg $ getNormal $ panelStyle config
       styleFgColor = color $ getNormal $ panelStyle config
-
-    
+ 
 setPanelSize :: PanelConfig -> Gtk.Rectangle -> Gtk.Window -> IO ()
 setPanelSize config geo@(Gtk.Rectangle x y w h) window = do
 
@@ -153,6 +167,30 @@ setPanelSize config geo@(Gtk.Rectangle x y w h) window = do
       position = panelPosition config
 
       
+dbusLabel :: String -> MatchRule -> PanelItems
+dbusLabel name match = item $ do
+        client  <- lift $ use dbus
+        label   <- liftIO $ Gtk.labelNew (Just "waiting for xmonad...")
+        lift $ debug "Added xmonad logger"
+        liftIO $ addMatch client match $ \signal -> do
+            let Just str = fromVariant $ head (signalBody signal) :: Maybe String
+            putStrLn $ "new message: " ++ str
+            Gtk.postGUISync $ Gtk.labelSetMarkup label str
+
+        return $ PanelItem name (Gtk.toWidget label) Gtk.PackNatural
+
+
+xmonadLog :: PanelItems
+xmonadLog = dbusLabel "xmonadLog" rule
+    where
+        rule      = matchAny 
+          { matchPath      = Just path
+          , matchInterface = Just interface
+          , matchMember    = Just member }
+        path      = DBus.objectPath_ "/org/moonbase/XMonadLog"
+        interface = DBus.interfaceName_ "org.moonbase.XMonadLog"
+        member    = DBus.memberName_ "Update"
+
 
 
 {-
@@ -182,7 +220,7 @@ getPanelSizes' (OnScreen _ c)  = getPanelSizes' conf screen
 
 
 
-
+{-
 spaceRight :: Maybe String -> PanelItems
 spaceRight mlabel = item $ do
   label <- liftIO $ Gtk.labelNew mlabel
@@ -203,6 +241,7 @@ spaceLeft mlabel = item $ do
 (PanelItems a) <-- (PanelItems b) = PanelItems $ a ++ spacer ++ b
   where
     (PanelItems spacer) = spaceLeft Nothing
+-}
 
 
 
