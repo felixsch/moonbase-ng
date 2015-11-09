@@ -19,6 +19,7 @@ module Moonbase.DBus
   , toMethod
   , runAction
   , Nameable(..)
+  , sanatizeName
   , on
   , withoutHelp
   ) where
@@ -30,7 +31,7 @@ import Control.Concurrent.STM.TVar
 import DBus.Client
 import DBus
 
-import Data.Char (toLower)
+import Data.Char (toLower, toUpper)
 import qualified Data.Map as M
 
 import Moonbase.Core
@@ -189,6 +190,13 @@ on n help f = do
 
 withoutHelp :: String
 withoutHelp = "No help is available."
+
+sanatizeName :: String -> String
+sanatizeName []       = []
+sanatizeName (' ':xs) = sanatizeName xs
+sanatizeName ('-':x:xs) = toUpper x : sanatizeName xs
+sanatizeName ('_':x:xs) = toUpper x : sanatizeName xs
+sanatizeName (x:xs)     = x : sanatizeName xs
 
 
 

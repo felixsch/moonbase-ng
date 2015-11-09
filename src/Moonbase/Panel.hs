@@ -13,6 +13,7 @@ import Moonbase.Util.Gtk
 import Moonbase.Util.Css
 
 import Moonbase.Signal
+import Moonbase.DBus
 
 import Control.Monad.STM
 import Control.Concurrent.STM.TVar
@@ -33,11 +34,6 @@ data PanelMode = OnMonitor Int
                | SpanMonitors
                | OnScreen Int PanelMode
 
-instance Show PanelMode where
-  show (OnMonitor num)  = "on-monitor-" ++ show num
-  show SpanMonitors     = "span-monitor"
-  show (OnScreen num c) = "on-screen-" ++ show num ++ "-" ++ show c
-
 
 getMode :: Gtk.Display -> PanelMode -> IO (Gtk.Rectangle, Gtk.Screen)
 getMode display mode = do
@@ -56,7 +52,8 @@ getMode display mode = do
  
 
 data PanelConfig = PanelConfig
-  { panelHeight   :: Int
+  { panelName     :: String
+  , panelHeight   :: Int
   , panelPosition :: Position
   , panelMode     :: PanelMode
   , panelStyle    :: DefaultTheme }
@@ -91,18 +88,18 @@ type Panel = TVar PanelState
 
 withPanel :: PanelConfig -> PanelItems -> Moon Panel
 withPanel config (PanelItems items) = do
-  debug "a panel"
+
+  debug $ "new panel " ++ name
 
   withDisplay $ \display -> do
+
  
-    (size, screen) <- liftIO $ getMode display (panelMode config)
+    (size, screen) <- liftIO $ getMode display mode
     window         <- liftIO Gtk.windowNew
 
     liftIO $ do
 
-      Gtk.widgetSetName window $ "panel-" ++ show (panelMode config)
-                                          ++ "-"
-                                          ++ show (panelPosition config)
+      Gtk.widgetSetName window name
 
       Gtk.windowSetScreen   window screen
       Gtk.windowSetTypeHint window Gtk.WindowTypeHintDock
@@ -131,13 +128,20 @@ withPanel config (PanelItems items) = do
     (items, panel) <- configureWith (PanelState [] window box config) $
       sequence items
 
-    debug "Added panel"
-    forM_ items $ \(PanelItem n w p) -> do
-      debug $ "  - item: " ++ n
+    forM_ items $ \(PanelItem n w p) ->
       liftIO $ Gtk.boxPackStart box w p 0
-      
 
-  
+    on (sanatizeName name, name) withoutHelp $ \(action:_) ->
+      case action of
+        "show" -> do
+          liftIO $ Gtk.widgetShow window
+          pure $ "showing " ++ name
+        "hide" -> do
+          liftIO $ Gtk.widgetHide window
+          pure $ "hiding " ++ name
+        _      -> pure "Panel commands: show/hide"
+
+ 
     liftIO $ do
       Gtk.containerAdd window box
       Gtk.widgetShowAll window
@@ -146,6 +150,8 @@ withPanel config (PanelItems items) = do
   where
       styleBgColor = bg $ getNormal $ panelStyle config
       styleFgColor = color $ getNormal $ panelStyle config
+      name         = panelName config
+      mode         = panelMode config
  
 setPanelSize :: PanelConfig -> Gtk.Rectangle -> Gtk.Window -> IO ()
 setPanelSize config geo@(Gtk.Rectangle x y w h) window = do
@@ -165,88 +171,3 @@ setPanelSize config geo@(Gtk.Rectangle x y w h) window = do
     where
       height   = panelHeight config
       position = panelPosition config
-
-      
-dbusLabel :: String -> MatchRule -> PanelItems
-dbusLabel name match = item $ do
-        client  <- lift $ use dbus
-        label   <- liftIO $ Gtk.labelNew (Just "waiting for xmonad...")
-        lift $ debug "Added xmonad logger"
-        liftIO $ addMatch client match $ \signal -> do
-            let Just str = fromVariant $ head (signalBody signal) :: Maybe String
-            putStrLn $ "new message: " ++ str
-            Gtk.postGUISync $ Gtk.labelSetMarkup label str
-
-        return $ PanelItem name (Gtk.toWidget label) Gtk.PackNatural
-
-
-xmonadLog :: PanelItems
-xmonadLog = dbusLabel "xmonadLog" rule
-    where
-        rule      = matchAny 
-          { matchPath      = Just path
-          , matchInterface = Just interface
-          , matchMember    = Just member }
-        path      = DBus.objectPath_ "/org/moonbase/XMonadLog"
-        interface = DBus.interfaceName_ "org.moonbase.XMonadLog"
-        member    = DBus.memberName_ "Update"
-
-
-
-{-
-getPanelSizes :: Gtk.Display -> PanelMode -> Moon Gtk.Rectangle
-getPanelSizes disp (OnScreen num conf)
-  = getPanelSizes' conf =<< liftIO $ Gtk.displayGetScreen disp num
-getPanelSizes disp conf
-  = getPanelSizes' conf =<< liftIO $ Gtk.displayGetDefaultScreen disp
-
-getPanelSizes' :: PanelMode -> Gtk.Screen -> Moon Gtk.Rectangle
-getPanelSizes' SpanMonitors screen = liftIO $ do
-  w <- Gtk.screenGetWidth screen
-  h <- Gtk.screenGetHeight screen
-  return $ Gtk.Rectangle 0 0 w h
-getPanelSizes' (OnMonitor num) = liftIO $ Gtk.screenGetMonitorGeometry screen num
-getPanelSizes' (OnScreen _ c)  = getPanelSizes' conf screen
-
--}
-
-
-
-
-
-
-
-
-
-
-
-{-
-spaceRight :: Maybe String -> PanelItems
-spaceRight mlabel = item $ do
-  label <- liftIO $ Gtk.labelNew mlabel
-  return $ PanelItem "spacer-right" (Gtk.toWidget label) Gtk.PackGrow
-
-(-->) :: PanelItems -> PanelItems -> PanelItems
-(PanelItems a) --> (PanelItems b) = PanelItems $ a ++ spacer ++ b
-  where
-    (PanelItems spacer) = spaceRight Nothing
-
-
-spaceLeft :: Maybe String -> PanelItems
-spaceLeft mlabel = item $ do
-  label <- liftIO $ Gtk.labelNew mlabel
-  return $ PanelItem "spacer-left" (Gtk.toWidget label) Gtk.PackGrow
-
-(<--) :: PanelItems -> PanelItems -> PanelItems 
-(PanelItems a) <-- (PanelItems b) = PanelItems $ a ++ spacer ++ b
-  where
-    (PanelItems spacer) = spaceLeft Nothing
--}
-
-
-
-
-  
-
-
-

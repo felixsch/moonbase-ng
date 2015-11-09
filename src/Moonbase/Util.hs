@@ -2,7 +2,7 @@ module Moonbase.Util
   ( Configure(..) , configure, configureWith
   , Position(..)
   , parseColorTuple, clamp
-  , lift
+  , lift, liftIO
   ) where
 
 import Control.Monad.State

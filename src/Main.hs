@@ -1,6 +1,7 @@
 
 import Moonbase
 import Moonbase.Panel
+import Moonbase.Panel.Items
 import Moonbase.Theme
 import Moonbase.WM.XMonad
 
@@ -11,7 +12,8 @@ term Nothing     = exec $ app "gnome-terminal"
 
 panel :: PanelConfig
 panel = PanelConfig 
-  { panelHeight   = 20
+  { panelName     = "top-panel"
+  , panelHeight   = 20
   , panelPosition = Top
   , panelMode     = OnMonitor 0
   , panelStyle    = defaultTheme }
