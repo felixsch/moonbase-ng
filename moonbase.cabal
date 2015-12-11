@@ -28,6 +28,9 @@ library
                     , Moonbase.Panel.Items
                     , Moonbase.Panel.Items.Expand
                     , Moonbase.Panel.Items.DBus
+                    , Moonbase.Panel.Items.Tray
+                    , Moonbase.Panel.Items.Clock
+                    , Moonbase.Util.Widget.Chart
 --                    Moonbase.Component
 --                    Moonbase.Pipe
 --                    Moonbase.Application
@@ -48,7 +51,7 @@ library
 --                        , Moonbase.Panel.Gtk.Item.Label
 --                        , Moonbase.Panel.Gtk.Item.Cpu
 --                        , Moonbase.Panel.Gtk.Item.Mem
---                        
+--
 --                        , Moonbase.Prompt.Gtk
 --
 --                        , Moonbase.Gtk.GraphWidget
@@ -62,10 +65,11 @@ library
   build-depends:
       base                  >= 4    && < 5
     , containers            >= 0.3  && < 0.6
+    , vector                >= 0.11.0.0
     , transformers          >= 0.3.0.0
     , mtl                   >= 2.1.2
     , filepath              >= 1.3.0.1
-    , dbus                  >= 0.10.7 
+    , dbus                  >= 0.10.7
     , directory             >= 1.2.0.1
     , process               >= 1.1.0.2
     , time                  >= 1.4.0.1
@@ -76,6 +80,7 @@ library
     , optparse-applicative  >= 0.11.0.2
     , xdg                   >= 0.1.0.0
     , gtk3                  >= 0.13.7
+    , gtk3-traymanager      >= 0.1.5
     , glib                  >= 0.13.1.0
     , cairo                 >= 0.13.1.0
 
@@ -93,7 +98,7 @@ library
     exposed-modules:    Moonbase.WM.XMonad
 
   hs-source-dirs:       src
-  default-language:     Haskell2010 
+  default-language:     Haskell2010
 
 --  ghc-options: -Wall
 
@@ -101,16 +106,17 @@ library
 
 executable moonbase
   main-is:             Main.hs
-    
+
   pkgconfig-depends:    gtk+-3.0
 
-  build-depends:       
+  build-depends:
       base                  >= 4.7     && < 5
     , containers            >= 0.5
+    , vector                >= 0.11.0.0
     , transformers          >= 0.3.0.0
     , mtl                   >= 2.1.2
     , filepath              >= 1.3.0.1
-    , dbus                  >= 0.10.7 
+    , dbus                  >= 0.10.7
     , directory             >= 1.2.0.1
     , process               >= 1.1.0.2
     , time                  >= 1.4.0.1
@@ -120,11 +126,12 @@ executable moonbase
     , lens                  >= 4.9.1
     , optparse-applicative  >= 0.11.0.2
     , xdg                   >= 0.1.0.0
-    , gtk3              >= 0.13.7
-    , glib              >= 0.13.1.0
-    , cairo             >= 0.13.1.0
-  
-  hs-source-dirs:      src 
+    , gtk3                  >= 0.13.7
+    , gtk3-traymanager      >= 0.1.5
+    , glib                  >= 0.13.1.0
+    , cairo                 >= 0.13.1.0
+
+  hs-source-dirs:      src
 
   c-sources:           set_properties.c
 
@@ -135,9 +142,8 @@ executable moonbase
   ghc-options: -threaded
 
   If flag(withXMonad)
-    build-depends: 
+    build-depends:
        xmonad            >= 0.11
      , xmonad-contrib    >= 0.11.3
-     , utf8-string       >= 0.3.8 
+     , utf8-string       >= 0.3.8
      , X11               >= 1.6.1.1
-

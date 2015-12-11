@@ -41,15 +41,15 @@ getMode display mode = do
 
     rect   <- case mode' of
       OnMonitor x  -> Gtk.screenGetMonitorGeometry screen x
-      SpanMonitors -> Gtk.Rectangle 0 0 <$> Gtk.screenGetWidth screen 
-                                        <*> Gtk.screenGetHeight screen    
+      SpanMonitors -> Gtk.Rectangle 0 0 <$> Gtk.screenGetWidth screen
+                                        <*> Gtk.screenGetHeight screen
     return (rect, screen)
-  where 
+  where
     (num, mode') = screenNum 0 mode
 
     screenNum _ (OnScreen x m) = screenNum x m
     screenNum n m              = (n, m)
- 
+
 
 data PanelConfig = PanelConfig
   { panelName     :: String
@@ -58,7 +58,7 @@ data PanelConfig = PanelConfig
   , panelMode     :: PanelMode
   , panelStyle    :: DefaultTheme }
 
-data PanelItem = PanelItem 
+data PanelItem = PanelItem
   { _paneItemName     :: Name
   , _panelItemWidget  :: Gtk.Widget
   , _panelItemPacking :: Gtk.Packing }
@@ -78,7 +78,7 @@ item gen = PanelItems [gen]
 data PanelState = PanelState
   { _panelItems  :: [PanelItem]
   , _panelWindow :: Gtk.Window
-  , _panelHBox   :: Gtk.HBox 
+  , _panelHBox   :: Gtk.HBox
   , _panelConfig :: PanelConfig }
 
 makeLenses ''PanelState
@@ -93,7 +93,7 @@ withPanel config (PanelItems items) = do
 
   withDisplay $ \display -> do
 
- 
+
     (size, screen) <- liftIO $ getMode display mode
     window         <- liftIO Gtk.windowNew
 
@@ -141,7 +141,7 @@ withPanel config (PanelItems items) = do
           pure $ "hiding " ++ name
         _      -> pure "Panel commands: show/hide"
 
- 
+
     liftIO $ do
       Gtk.containerAdd window box
       Gtk.widgetShowAll window
@@ -152,7 +152,7 @@ withPanel config (PanelItems items) = do
       styleFgColor = color $ getNormal $ panelStyle config
       name         = panelName config
       mode         = panelMode config
- 
+
 setPanelSize :: PanelConfig -> Gtk.Rectangle -> Gtk.Window -> IO ()
 setPanelSize config geo@(Gtk.Rectangle x y w h) window = do
 

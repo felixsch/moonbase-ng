@@ -29,7 +29,7 @@ dbusLabel name match = item $ do
 xmonadLog :: PanelItems
 xmonadLog = dbusLabel "xmonadLog" rule
     where
-        rule      = DBus.matchAny 
+        rule      = DBus.matchAny
           { DBus.matchPath      = Just path
           , DBus.matchInterface = Just interface
           , DBus.matchMember    = Just member }

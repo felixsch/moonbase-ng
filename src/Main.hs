@@ -11,7 +11,7 @@ term (Just args') = exec $ appWith "gnome-terminal" [args']
 term Nothing     = exec $ app "gnome-terminal"
 
 panel :: PanelConfig
-panel = PanelConfig 
+panel = PanelConfig
   { panelName     = "top-panel"
   , panelHeight   = 20
   , panelPosition = Top
@@ -23,8 +23,8 @@ main = moonbase term $ do
   xmonad  <- withDefaultXMonad defaultTheme
   desktop <- withDesktop $
     onEveryMonitor $ setWallpaper "/tmp/bg1.jpg"
-  p   <- withPanel panel (xmonadLog)
+  p   <- withPanel panel (xmonadLog --> systemTray <> clock "m.d.y")
   exec $ app "gnome-terminal"
   exec $ app "d-feet"
-  
+
   return ()
