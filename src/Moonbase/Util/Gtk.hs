@@ -10,13 +10,14 @@ Some helper function to complete Gtk's functionality
 
 -}
 
-module Moonbase.Util.Gtk 
+module Moonbase.Util.Gtk
  ( iosync
  , ioasync
  , withDisplay
  , pangoColor
  , pangoSanitize
  , moveWindow
+ , widgetGetSize
  , setWindowHints
  , setWindowStruts
  , getAbsoluteMousePosition
@@ -27,19 +28,19 @@ module Moonbase.Util.Gtk
  , checkDisplay
  ) where
 
-import Control.Monad.Reader
-import Control.Applicative
-import Control.Exception
+import           Control.Applicative
+import           Control.Exception
+import           Control.Monad.Reader
 
-import qualified Graphics.UI.Gtk as Gtk
+import qualified Graphics.UI.Gtk                      as Gtk
+import qualified Graphics.UI.Gtk.General.CssProvider  as Gtk
 import qualified Graphics.UI.Gtk.General.StyleContext as Gtk
-import qualified Graphics.UI.Gtk.General.CssProvider as Gtk
 
-import Moonbase.Core
-import Moonbase.Util
-import Moonbase.Signal
-import Moonbase.Theme
-import Moonbase.Util.StrutProperties
+import           Moonbase.Core
+import           Moonbase.Signal
+import           Moonbase.Theme
+import           Moonbase.Util
+import           Moonbase.Util.StrutProperties
 
 
 withDisplay :: (Gtk.Display -> Moon a) -> Moon a
@@ -64,7 +65,7 @@ pangoColor :: String -> String -> String
 pangoColor fg str = left ++ str ++ right
     where
         left = "<span foreground=\"" ++ color_ fg ++ "\">"
-        right = "</span>" 
+        right = "</span>"
 
 -- | Sanatize few basic characters
 pangoSanitize :: String -> String
@@ -82,7 +83,7 @@ moveWindow :: Gtk.Window     -- ^ Window which should be moved
            -> Gtk.Rectangle  -- ^ Size of the monitor
            -> IO ()
 moveWindow win pos (Gtk.Rectangle x _ _ h) = do
-    (_, height) <- Gtk.windowGetSize win 
+    (_, height) <- Gtk.windowGetSize win
     Gtk.windowMove win x (offset height)
     where
         offset height = case pos of
@@ -125,11 +126,11 @@ setWindowStruts win pos height geo = do
     scr    <- Gtk.windowGetScreen win
     moNum  <- Gtk.screenGetNMonitors scr
     moGeos <- mapM (Gtk.screenGetMonitorGeometry scr) [0 .. (moNum - 1)]
-    
+
     setStrutProperties win $ strutProperties pos height geo moGeos
 
 -- | Returns the absolute mouse position
--- 
+--
 -- If the mouse pointer is not on the screen (which is usual the case with Xinerama and nvidia twinview)
 -- this function return (0,0)
 getAbsoluteMousePosition :: Gtk.Screen -> IO (Int, Int)
@@ -145,14 +146,14 @@ parseColorGtk :: Color -> Gtk.Color
 parseColorGtk c = Gtk.Color (imp r) (imp g) (imp b)
   where
     imp       = (*) 257
-    (r,g,b,_) = parseColorTuple c 
+    (r,g,b,_) = parseColorTuple c
 
 
 setStyle :: (Gtk.WidgetClass widget) =>  widget -> String -> [(String, String)] -> IO ()
 setStyle w name settings = do
     Gtk.widgetSetName w name
 
-    provider <- Gtk.cssProviderNew 
+    provider <- Gtk.cssProviderNew
     context  <- Gtk.widgetGetStyleContext w
 
     Gtk.cssProviderLoadFromString provider css
@@ -163,11 +164,20 @@ setStyle w name settings = do
     parsedList []          = []
 
     css = "#" ++ name ++ " {"
-        ++ unwords (parsedList settings) 
+        ++ unwords (parsedList settings)
         ++ "}"
 
 
 checkDisplay :: Maybe Gtk.Display -> Moon Gtk.Display
 checkDisplay Nothing     = fatal "Could not open display" >> error "Could not open display"
-checkDisplay (Just disp) = return $ disp
+checkDisplay (Just disp) = return disp
 
+widgetGetSize :: (Gtk.WidgetClass o, MonadIO m) => o -> m (Int,Int)
+widgetGetSize chart = do
+  area <- liftIO $ Gtk.widgetGetWindow chart
+  case area of
+       Nothing  -> return (0,0)
+       Just win -> do
+          w <- liftIO $ Gtk.drawWindowGetWidth win
+          h <- liftIO $ Gtk.drawWindowGetHeight win
+          return (w, h)

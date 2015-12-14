@@ -3,16 +3,19 @@ module Moonbase.Util
   , Position(..)
   , parseColorTuple, clamp
   , lift, liftIO
+  , pollForever, pollForever_
   ) where
 
-import Control.Monad.State
+import           Control.Concurrent  (forkIO, threadDelay)
+import           Control.Monad       (forever)
+import           Control.Monad.State
 
-import Numeric (readHex)
+import           Numeric             (readHex)
 
-import Data.Char (isHexDigit)
+import           Data.Char           (isHexDigit)
 
-import Moonbase.Core
-import Moonbase.Theme (Color, defaultColor)
+import           Moonbase.Core
+import           Moonbase.Theme      (Color, defaultColor)
 
 type Configure c a = StateT c (Moonbase Runtime) a
 
@@ -55,4 +58,13 @@ clamp (r,g,b,a) = (cl a, cl b, cl g, cl a)
   where
     cl x = fromIntegral $ x / 255
 
+pollForever_ :: Int -> IO () -> IO ()
+pollForever_ ms f = void $ forkIO $ forever $ f >> threadDelay (ms * 1000)
 
+pollForever :: Int -> a -> (a -> IO a) -> IO ()
+pollForever ms i f = void $ forkIO $ void $ loop i
+  where
+    loop a = do
+      a' <- f a
+      threadDelay (ms * 1000)
+      loop a'

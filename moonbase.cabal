@@ -30,7 +30,9 @@ library
                     , Moonbase.Panel.Items.DBus
                     , Moonbase.Panel.Items.Tray
                     , Moonbase.Panel.Items.Clock
+                    , Moonbase.Panel.Items.Cpu
                     , Moonbase.Util.Widget.Chart
+                    , Moonbase.Util.Widget.Bar
 --                    Moonbase.Component
 --                    Moonbase.Pipe
 --                    Moonbase.Application
