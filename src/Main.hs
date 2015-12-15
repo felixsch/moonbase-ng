@@ -1,9 +1,10 @@
 
-import Moonbase
-import Moonbase.Panel
-import Moonbase.Panel.Items
-import Moonbase.Theme
-import Moonbase.WM.XMonad
+import           Moonbase
+import           Moonbase.Panel
+import           Moonbase.Panel.Items
+import           Moonbase.Panel.Items.Cpu
+import           Moonbase.Theme
+import           Moonbase.WM.XMonad
 
 
 term :: Terminal
@@ -18,12 +19,17 @@ panel = PanelConfig
   , panelMode     = OnMonitor 0
   , panelStyle    = defaultTheme }
 
+-- panel items -------------------------------------------------------------------------------------
+myCpuBar :: CpuBar
+myCpuBar = cpuBar CpuAll 800 $ defaultCpuBarConfig
+
+
 main :: IO ()
 main = moonbase term $ do
   xmonad  <- withDefaultXMonad defaultTheme
   desktop <- withDesktop $
     onEveryMonitor $ setWallpaper "/tmp/bg1.jpg"
-  p   <- withPanel panel (xmonadLog --> systemTray <> clock "m.d.y")
+  p   <- withPanel panel (xmonadLog --> myCpuBar <> clock "%m.%d.%Y")
   exec $ app "gnome-terminal"
   exec $ app "d-feet"
 

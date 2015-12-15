@@ -53,10 +53,10 @@ parseColorTuple c@['#', r1, r2, g1, g2, b1, b2, a1, a2]
 parseColorTuple _           = parseColorTuple defaultColor
 
 
-clamp :: (Eq a, Num a, Integral a, Fractional a) => (a,a,a,a) -> (Double, Double, Double, Double)
-clamp (r,g,b,a) = (cl a, cl b, cl g, cl a)
+clamp :: (Integral a) => (a,a,a,a) -> (Double, Double, Double, Double)
+clamp (r,g,b,a) = (cl r, cl g, cl b, cl a)
   where
-    cl x = fromIntegral $ x / 255
+    cl x = fromIntegral x / 255.0
 
 pollForever_ :: Int -> IO () -> IO ()
 pollForever_ ms f = void $ forkIO $ forever $ f >> threadDelay (ms * 1000)

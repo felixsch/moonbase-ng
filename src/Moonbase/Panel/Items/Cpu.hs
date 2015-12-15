@@ -23,10 +23,11 @@ import           Moonbase.Util.Widget.Bar
 defaultCpuBarConfig :: BarConfig
 defaultCpuBarConfig = BarConfig
   { barOrientation = HorizontalBar
-  , barColor       = "#ffff00"
+  , barSegmentColor       = "#9ec400"
+  , barFrameColor         = "#202020"
   , barMin         = 0
   , barMax         = 100
-  , barWidth       = 100
+  , barWidth       = 40
   , barLabel       = Just "cpu:"}
 
 data Cpu = CpuAll

@@ -23,6 +23,7 @@ library
                     , Moonbase.Application
                     , Moonbase.Desktop
                     , Moonbase.Util.Gtk
+                    , Moonbase.Util.Cairo
                     , Moonbase.Util.Css
                     , Moonbase.Panel
                     , Moonbase.Panel.Items

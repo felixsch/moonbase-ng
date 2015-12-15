@@ -16,6 +16,7 @@ import           Control.Monad
 
 import           Moonbase.Core
 import           Moonbase.Theme
+import           Moonbase.Util.Cairo
 import           Moonbase.Util.Gtk
 
 
@@ -24,12 +25,13 @@ data BarOrientation = VerticalBar
                     deriving (Show, Eq)
 
 data BarConfig = BarConfig
-  { barOrientation :: BarOrientation
-  , barColor       :: Color
-  , barMin         :: Int
-  , barMax         :: Int
-  , barWidth       :: Int
-  , barLabel       :: Maybe String }
+  { barOrientation  :: BarOrientation
+  , barSegmentColor :: Color
+  , barFrameColor   :: Color
+  , barMin          :: Int
+  , barMax          :: Int
+  , barWidth        :: Int
+  , barLabel        :: Maybe String }
 
 data Bar = Bar { barArea :: Gtk.DrawingArea }
 
@@ -83,8 +85,6 @@ barNew initc = do
     value  <- liftIO $ Gtk.get bar barValue
     config <- liftIO $ Gtk.get bar barConfig
     sizes  <- widgetGetSize bar
-    liftIO $ putStrLn $ " :: value = " ++ show value
-    liftIO $ putStrLn $ " :: sizes = " ++ show sizes
     void $ if barOrientation config == HorizontalBar
             then drawHorizontalBar sizes config value
             else drawVerticalBar sizes config value
@@ -92,10 +92,19 @@ barNew initc = do
 
 
 drawHorizontalBar :: (Int, Int) -> BarConfig -> Int -> Cairo.Render ()
-drawHorizontalBar (w,h) config value = Cairo.setSourceRGBA r g b a >> Cairo.setLineWidth 1 >> drawBox >> drawBar
+drawHorizontalBar (w,h) config value = drawSegments >> drawFrame
   where
-    drawBox = Cairo.rectangle 0 0 (fromIntegral w) (fromIntegral h) >> Cairo.stroke
-    drawBar = return ()
-    (r,g,b,a) = parseColorTuple $ barColor config
+    drawFrame = sourceColor (barFrameColor config)
+              >> Cairo.setLineWidth 2
+              >> Cairo.rectangle spaceW gapH (w'- spaceW) gapH
+              >> Cairo.stroke
+    drawSegments = sourceColor (barSegmentColor config)
+                 >> Cairo.rectangle (w' - spaceW - segmentW) gapH (w' - spaceW) gapH
+                 >> Cairo.fill
+    gapH     = fromIntegral h / 3
+    w'       = fromIntegral w
+    line     = 2.0
+    spaceW   = 2.0
+    segmentW = (w' - spaceW) * (fromIntegral value / 100.0)
 
 drawVerticalBar (w,h) config value = return ()

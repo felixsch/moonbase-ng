@@ -7,14 +7,14 @@ module Moonbase.WM.XMonad where
 
 --import           Control.Applicative
 
-import           Control.Lens
 import           Control.Concurrent
+import           Control.Lens
 import           Control.Monad.State
 
 --import           Data.Maybe
 import           Data.Monoid
 
-import qualified Data.Map                     as M
+import qualified Data.Map                   as M
 
 import           Moonbase
 
@@ -22,13 +22,13 @@ import           Moonbase.Theme
 import           Moonbase.WM.XMonad.Impl
 
 
-import qualified Codec.Binary.UTF8.String     as Utf8
-import qualified DBus                         as DBus
-import qualified DBus.Client                  as DBus
+import qualified Codec.Binary.UTF8.String   as Utf8
+import qualified DBus                       as DBus
+import qualified DBus.Client                as DBus
 
 import           Graphics.X11.Types
 
-import           XMonad                       hiding (xmonad)
+import           XMonad                     hiding (xmonad)
 import           XMonad.Hooks.DynamicLog
 import           XMonad.Hooks.EwmhDesktops
 import           XMonad.Hooks.ManageDocks
@@ -39,12 +39,12 @@ import           XMonad.Layout.GridVariants
 --import           XMonad.Layout.NoBorders
 --import           XMonad.Layout.Spacing
 --import           XMonad.Operations
-import qualified XMonad.StackSet              as SS
+import qualified XMonad.StackSet            as SS
 
 import           XMonad.Actions.CopyWindow
 
 
-import XMonad.Util.EZConfig
+import           XMonad.Util.EZConfig
 
 
 
@@ -61,6 +61,7 @@ withXMonad :: (LayoutClass l Window, Read (l Window))
 withXMonad generator  = do
         generated <- generator
         thread <- liftIO $ forkIO $ moonbaseXMonad generated
+        liftIO $ threadDelay 2000000
         return $ XMonad (XMonad.workspaces generated) thread
 
 withDefaultXMonad :: (Theme t) => t -> Moon XMonad
@@ -81,7 +82,7 @@ basicMoonbaseHooks dbus theme conf = conf
 
 basicXMonadConfig theme = do
   client <- use dbus
-  return $ basicMoonbaseHooks client theme $ XMonad.defaultConfig 
+  return $ basicMoonbaseHooks client theme $ XMonad.defaultConfig
     { XMonad.terminal    = dbusTerminalCall
     , XMonad.workspaces  = map show [1..5]
     , borderWidth        = 2
@@ -90,7 +91,7 @@ basicXMonadConfig theme = do
     , normalBorderColor  = color $ getNormal theme
     , focusedBorderColor = color $ getHighlight theme }
     where
-      keyBinding conf = M.union 
+      keyBinding conf = M.union
         (defaultKeyBindings conf)
         (keys defaultConfig conf)
 
@@ -126,7 +127,7 @@ defaultMouseBindings (XConfig {XMonad.modMask = mask}) = M.fromList
 
 callMoonbase :: Name -> [String] -> X (Maybe String)
 callMoonbase action' args' = liftIO $ runMoonbaseAction action' args'
-    
+
 
 dbusPanelLog :: (Theme t) => t -> DBusClient -> X ()
 dbusPanelLog theme client = dynamicLogWithPP pretty
