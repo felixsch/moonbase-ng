@@ -1,9 +1,9 @@
 module Moonbase.Panel.Items.Cpu where
-
 import           Control.Applicative
 import           Control.Arrow
 import           Control.Concurrent
 import           Control.Monad
+import           Control.Monad.IO.Class
 
 import           System.IO
 
@@ -16,6 +16,7 @@ import           Moonbase.DBus
 import           Moonbase.Panel
 import           Moonbase.Theme
 import           Moonbase.Util
+import           Moonbase.Util.Css
 import           Moonbase.Util.Gtk
 import           Moonbase.Util.Widget.Bar
 
@@ -24,11 +25,11 @@ defaultCpuBarConfig :: BarConfig
 defaultCpuBarConfig = BarConfig
   { barOrientation = HorizontalBar
   , barSegmentColor       = "#9ec400"
-  , barFrameColor         = "#202020"
+  , barFrameColor         = "#151515"
+  , barTextColor         = "#151515"
   , barMin         = 0
   , barMax         = 100
-  , barWidth       = 40
-  , barLabel       = Just "cpu:"}
+  , barWidth       = 40 }
 
 data Cpu = CpuAll
          | CpuCore Int
@@ -48,19 +49,50 @@ data CpuStat = CpuStat
   , cpuSteal   :: Int } deriving (Show)
 
 type CpuBar = PanelItems
+
 cpuBar :: Cpu -> Int -> BarConfig -> CpuBar
 cpuBar cpu ms conf = item $ do
   bar <- liftIO $ barNew conf
   i   <- liftIO $ readStat cpu
-  liftIO $ pollForever 0 i $ \p -> do
+  runCpuBar cpu ms i bar
+  return $ PanelItem (show cpu ++ "Bar") (Gtk.toWidget bar) Gtk.PackNatural
+
+cpuBarWithLabel :: Cpu -> Int -> BarConfig -> CpuBar
+cpuBarWithLabel cpu ms conf = item $ do
+  box <- liftIO $ do
+    box   <- Gtk.hBoxNew False 2
+    bar   <- barNew conf
+    label <- Gtk.labelNew (Just "0%")
+    i     <- readStat cpu
+    (_, h) <- widgetGetSize label
+
+    Gtk.labelSetJustify label Gtk.JustifyLeft
+    Gtk.widgetSetName label $ show cpu ++ "-label"
+    Gtk.widgetSetSizeRequest label 40 h
+    Gtk.boxPackStart box bar Gtk.PackNatural 0
+    Gtk.boxPackStart box label Gtk.PackNatural 0
+
+    withCss label $ fgColor (barTextColor conf)
+
+    pollForever 0 i $ \p -> do
+      a <- readStat cpu
+      threadDelay (ms * 1000)
+      b <- readStat cpu
+      let value = calcCpuLoad p a b
+      Gtk.labelSetText label (show value ++ "%")
+      Gtk.set bar [barValue Gtk.:= value]
+      return b
+    return box
+  return $ PanelItem (show cpu ++ "Bar") (Gtk.toWidget box) Gtk.PackNatural
+
+
+runCpuBar :: (MonadIO m) => Cpu -> Int -> CpuStat -> Bar -> m ()
+runCpuBar cpu ms i bar = liftIO $ pollForever 0 i $ \p -> do
     a <- readStat cpu
     threadDelay (ms * 1000)
     b <- readStat cpu
-    putStrLn $ "setValue to " ++ show (calcCpuLoad p a b)
     Gtk.set bar [barValue Gtk.:= calcCpuLoad p a b]
     return b
-  return $ PanelItem (show cpu ++ "Bar") (Gtk.toWidget bar) Gtk.PackNatural
-
 
 calcCpuLoad :: CpuStat -> CpuStat -> CpuStat -> Int
 calcCpuLoad p a b = ((totalAll p a b - idleAll p a b) * 100) `div` totalAll p a b

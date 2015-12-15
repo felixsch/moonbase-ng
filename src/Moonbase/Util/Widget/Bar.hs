@@ -28,10 +28,10 @@ data BarConfig = BarConfig
   { barOrientation  :: BarOrientation
   , barSegmentColor :: Color
   , barFrameColor   :: Color
+  , barTextColor    :: Color
   , barMin          :: Int
   , barMax          :: Int
-  , barWidth        :: Int
-  , barLabel        :: Maybe String }
+  , barWidth        :: Int }
 
 data Bar = Bar { barArea :: Gtk.DrawingArea }
 
@@ -90,21 +90,32 @@ barNew initc = do
             else drawVerticalBar sizes config value
   return bar
 
-
-drawHorizontalBar :: (Int, Int) -> BarConfig -> Int -> Cairo.Render ()
+drawHorizontalBar :: (Double, Double) -> BarConfig -> Int -> Cairo.Render ()
 drawHorizontalBar (w,h) config value = drawSegments >> drawFrame
   where
     drawFrame = sourceColor (barFrameColor config)
               >> Cairo.setLineWidth 2
-              >> Cairo.rectangle spaceW gapH (w'- spaceW) gapH
+              >> Cairo.rectangle spaceW (gapH*4) (w - spaceW) (gapH*5)
               >> Cairo.stroke
     drawSegments = sourceColor (barSegmentColor config)
-                 >> Cairo.rectangle (w' - spaceW - segmentW) gapH (w' - spaceW) gapH
+                 >> Cairo.rectangle (w - spaceW - segmentW) (gapH*4) (w - spaceW) (gapH*5)
                  >> Cairo.fill
-    gapH     = fromIntegral h / 3
-    w'       = fromIntegral w
+    gapH     = h / 12
     line     = 2.0
     spaceW   = 2.0
-    segmentW = (w' - spaceW) * (fromIntegral value / 100.0)
+    segmentW = (w - spaceW) * (fromIntegral value / 100.0)
 
-drawVerticalBar (w,h) config value = return ()
+
+drawVerticalBar :: (Double, Double) -> BarConfig -> Int -> Cairo.Render ()
+drawVerticalBar (w,h) config value = drawSegments >> drawFrame
+  where
+    drawFrame = sourceColor (barFrameColor config)
+              >> Cairo.setLineWidth 2
+              >> Cairo.rectangle spaceW gapH (w- spaceW) gapH
+              >> Cairo.stroke
+    drawSegments = sourceColor (barSegmentColor config)
+                 >> Cairo.rectangle spaceW gapH (w - spaceW) (segmentH - gapH)
+                 >> Cairo.fill
+    gapH     = 2.0
+    spaceW   = 2.0
+    segmentH = (h - gapH) * (fromIntegral value / 100.0)

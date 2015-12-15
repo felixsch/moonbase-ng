@@ -21,7 +21,7 @@ panel = PanelConfig
 
 -- panel items -------------------------------------------------------------------------------------
 myCpuBar :: CpuBar
-myCpuBar = cpuBar CpuAll 800 $ defaultCpuBarConfig
+myCpuBar = cpuBarWithLabel CpuAll 800 defaultCpuBarConfig
 
 
 main :: IO ()

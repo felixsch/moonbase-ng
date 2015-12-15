@@ -45,7 +45,7 @@ import           Moonbase.Util.StrutProperties
 
 withDisplay :: (Gtk.Display -> Moon a) -> Moon a
 withDisplay f = do
-    disp <- liftIO $ Gtk.displayGetDefault
+    disp <- liftIO Gtk.displayGetDefault
     case disp of
          Just d  -> f d
          Nothing -> do
@@ -172,7 +172,7 @@ checkDisplay :: Maybe Gtk.Display -> Moon Gtk.Display
 checkDisplay Nothing     = fatal "Could not open display" >> error "Could not open display"
 checkDisplay (Just disp) = return disp
 
-widgetGetSize :: (Gtk.WidgetClass o, MonadIO m) => o -> m (Int,Int)
+widgetGetSize :: (Gtk.WidgetClass o, MonadIO m, Num a) => o -> m (a, a)
 widgetGetSize chart = do
   area <- liftIO $ Gtk.widgetGetWindow chart
   case area of
@@ -180,4 +180,4 @@ widgetGetSize chart = do
        Just win -> do
           w <- liftIO $ Gtk.drawWindowGetWidth win
           h <- liftIO $ Gtk.drawWindowGetHeight win
-          return (w, h)
+          return (fromIntegral w, fromIntegral h)
