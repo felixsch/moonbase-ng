@@ -40,7 +40,6 @@ module Moonbase.Core
   , liftIO
   ) where
 
---import DBus hiding (Message, Signal)
 import           DBus.Client
 
 import qualified Data.Map                            as M
@@ -50,12 +49,11 @@ import           Control.Monad
 import           Control.Monad.Reader
 import           Control.Monad.State
 
-import           Control.Lens
---import Control.Applicative
 import           Control.Concurrent
 import           Control.Concurrent.STM.TQueue
 import           Control.Concurrent.STM.TVar
 import           Control.Exception
+import           Control.Lens
 import           Control.Monad.STM                   (atomically)
 
 import           System.Environment.XDG.DesktopEntry

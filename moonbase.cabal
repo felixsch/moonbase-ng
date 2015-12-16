@@ -150,3 +150,18 @@ executable moonbase
      , xmonad-contrib    >= 0.11.3
      , utf8-string       >= 0.3.8
      , X11               >= 1.6.1.1
+
+test-suite test
+  type:               exitcode-stdio-1.0
+  default-language:   Haskell2010
+  main-is:            Main.hs
+  hs-source-dirs:     test
+  build-depends:      base >=4.8 && <5
+                      , test-framework
+                      , test-framework-hunit
+                      , HUnit
+                      , xdg
+                      , xmonad            >= 0.11
+                      , xmonad-contrib    >= 0.11.3
+                      , utf8-string       >= 0.3.8
+                      , X11               >= 1.6.1.1
