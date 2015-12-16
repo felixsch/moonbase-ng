@@ -1,31 +1,31 @@
 {-# LANGUAGE TemplateHaskell #-}
 module Moonbase.Desktop where
 
-import Control.Lens
-import Control.Monad
-import Control.Monad.STM
+import           Control.Lens
+import           Control.Monad
+import           Control.Monad.STM
 
-import Control.Concurrent.STM.TVar
+import           Control.Concurrent.STM.TVar
 
-import Control.Monad.State
+import           Control.Monad.State
 
-import qualified Graphics.UI.Gtk as Gtk
-import qualified System.Glib.GError as Glib
+import qualified Graphics.UI.Gtk             as Gtk
+import qualified System.Glib.GError          as Glib
 
-import Moonbase.Core
-import Moonbase.Util
-import Moonbase.Signal
-import Moonbase.Theme (Color)
-import Moonbase.Util.Gtk
+import           Moonbase.Core
+import           Moonbase.Signal
+import           Moonbase.Theme              (Color)
+import           Moonbase.Util
+import           Moonbase.Util.Gtk
 
-import Data.Word
+import           Data.Word
 
 
 type MonitorNum = Int
 data Monitor = Monitor
-    { _monitorNum        :: MonitorNum
-    , _monitorGeo        :: Gtk.Rectangle
-    , _monitorWindow     :: Gtk.Window }
+    { _monitorNum    :: MonitorNum
+    , _monitorGeo    :: Gtk.Rectangle
+    , _monitorWindow :: Gtk.Window }
 
 makeLenses ''Monitor
 
@@ -42,8 +42,8 @@ makeLenses ''Screen
 
 
 data DesktopState = DesktopState
-  { _desktopScreens   :: [Screen]
-  , _desktopDisplay   :: Gtk.Display }
+  { _desktopScreens :: [Screen]
+  , _desktopDisplay :: Gtk.Display }
 
 type Desktop = TVar DesktopState
 
@@ -79,7 +79,7 @@ initializeMonitor screen num = do
 
 withDesktop :: Configure DesktopState () -> Moon Desktop
 withDesktop conf = do
-  debug $ "with basic Desktop..."
+  debug "with basic Desktop..."
 
   disp       <- checkDisplay =<< liftIO Gtk.displayGetDefault
   numScreens <- liftIO $ Gtk.displayGetNScreens disp
@@ -93,14 +93,13 @@ withDesktop conf = do
 
   showDesktops state'
 
-  desktop <- liftIO $ atomically $ newTVar state'
+  liftIO $ atomically $ newTVar state'
 
     -- TODO:
     -- Add displayClosed handling
     -- Add screenChanged handling
     -- Add compositChanged handling
 
-  return desktop
 
 
 
@@ -133,7 +132,7 @@ onEveryScreen conf = do
 
 onEveryMonitor :: Configure Monitor () -> Configure DesktopState ()
 onEveryMonitor conf = onEveryScreen $ do
-  lift $ debug "running on every monitor..." 
+  lift $ debug "running on every monitor..."
 
   monitors <- use screenMonitors
 
@@ -144,7 +143,7 @@ onEveryMonitor conf = onEveryScreen $ do
   where
     configure' m = lift $ configure m conf
 
-  
+
 setBackgroundColor :: Color -> Configure Monitor ()
 setBackgroundColor c = do
   window                   <- use monitorWindow
@@ -152,14 +151,14 @@ setBackgroundColor c = do
   (Gtk.Rectangle x y w h)  <- use monitorGeo
 
   lift $ debug $ "Setting Color of Monitor " ++ show num ++ " to " ++ c
- 
+
   image <- liftIO $ do
     buf   <- Gtk.pixbufNew Gtk.ColorspaceRgb False 8 w h
     Gtk.pixbufFill buf r g b 255
     Gtk.imageNewFromPixbuf buf
 
   liftIO $ Gtk.containerAdd window image
-    where 
+    where
     (r,g,b,_) = parseColorTuple c :: (Word8, Word8, Word8, Word8)
 
 
@@ -200,7 +199,7 @@ newMonitorWindow i screen (Gtk.Rectangle x y w h) = do
     Gtk.windowSetDefaultSize window w h
     Gtk.widgetSetSizeRequest window w h
     Gtk.windowResize window w h
-    
+
     Gtk.windowSetTypeHint window Gtk.WindowTypeHintDesktop
     Gtk.windowSetGravity  window Gtk.GravityStatic
     Gtk.widgetSetCanFocus window False
@@ -208,11 +207,11 @@ newMonitorWindow i screen (Gtk.Rectangle x y w h) = do
     return window
   where
     noWidget :: Maybe Gtk.Widget
-    noWidget = Nothing 
+    noWidget = Nothing
 
     size :: Maybe (Int, Int)
     size = Just (w, h)
-    
+
 setComposited :: Gtk.Display -> Screen -> Moon Screen
 setComposited disp screen = do
    screen'     <- liftIO $ Gtk.displayGetScreen disp $ _screenNum screen
