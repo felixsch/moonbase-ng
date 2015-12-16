@@ -1,29 +1,29 @@
+{-# LANGUAGE RankNTypes      #-}
 {-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE RankNTypes #-}
 module Moonbase.Panel where
 
-import Control.Lens
-import Control.Applicative
-import Control.Monad
+import           Control.Applicative
+import           Control.Lens
+import           Control.Monad
 
-import Moonbase.Core
-import Moonbase.Theme
-import Moonbase.Util
-import Moonbase.Util.Gtk
-import Moonbase.Util.Css
+import           Moonbase.Core
+import           Moonbase.Theme
+import           Moonbase.Util
+import           Moonbase.Util.Css
+import           Moonbase.Util.Gtk
 
-import Moonbase.Signal
-import Moonbase.DBus
+import           Moonbase.DBus
+import           Moonbase.Signal
 
-import Control.Monad.STM
-import Control.Concurrent.STM.TVar
+import           Control.Concurrent.STM.TVar
+import           Control.Monad.STM
 
-import qualified Graphics.UI.Gtk as Gtk
-import Graphics.UI.Gtk (AttrOp(..))
+import           Graphics.UI.Gtk             (AttrOp (..))
+import qualified Graphics.UI.Gtk             as Gtk
 
 
-import DBus
-import DBus.Client
+import           DBus
+import           DBus.Client
 
 {-
   panel <- withPanel 20 Top (OnMonitor 1) (xmonad --> clock <-- cpu)
@@ -56,7 +56,17 @@ data PanelConfig = PanelConfig
   , panelHeight   :: Int
   , panelPosition :: Position
   , panelMode     :: PanelMode
-  , panelStyle    :: DefaultTheme }
+  , panelFgColor  :: Color
+  , panelBgColor  :: Color }
+
+defaultPanelConfig :: Theme -> PanelConfig
+defaultPanelConfig theme = PanelConfig
+  { panelName     = "defaultPanel"
+  , panelHeight   = 20
+  , panelPosition = Top
+  , panelMode     = OnMonitor 0
+  , panelFgColor  = fg $ normal theme
+  , panelBgColor  = bg $ normal theme }
 
 data PanelItem = PanelItem
   { _paneItemName     :: Name
@@ -85,22 +95,18 @@ makeLenses ''PanelState
 
 type Panel = TVar PanelState
 
-
-withPanel :: PanelConfig -> PanelItems -> Moon Panel
-withPanel config (PanelItems items) = do
-
-  debug $ "new panel " ++ name
+withPanel :: (PanelConfig -> PanelConfig) -> PanelItems -> Moon Panel
+withPanel cf (PanelItems items) = do
+  config <- (cf . defaultPanelConfig) <$> use theme
+  let name = panelName config
+  let mode = panelMode config
 
   withDisplay $ \display -> do
-
-
     (size, screen) <- liftIO $ getMode display mode
     window         <- liftIO Gtk.windowNew
 
     liftIO $ do
-
-      Gtk.widgetSetName window name
-
+      Gtk.widgetSetName     window name
       Gtk.windowSetScreen   window screen
       Gtk.windowSetTypeHint window Gtk.WindowTypeHintDock
       Gtk.windowSetGravity  window Gtk.GravityStatic
@@ -122,8 +128,8 @@ withPanel config (PanelItems items) = do
     box <- liftIO $ Gtk.hBoxNew False 2
 
     withCss window $ do
-      bgColor styleBgColor
-      fgColor styleFgColor
+      bgColor $ panelBgColor config
+      fgColor $ panelFgColor config
 
     (items, panel) <- configureWith (PanelState [] window box config) $
       sequence items
@@ -146,12 +152,6 @@ withPanel config (PanelItems items) = do
       Gtk.containerAdd window box
       Gtk.widgetShowAll window
       atomically $ newTVar $ panel { _panelItems = items }
-
-  where
-      styleBgColor = bg $ getNormal $ panelStyle config
-      styleFgColor = color $ getNormal $ panelStyle config
-      name         = panelName config
-      mode         = panelMode config
 
 setPanelSize :: PanelConfig -> Gtk.Rectangle -> Gtk.Window -> IO ()
 setPanelSize config geo@(Gtk.Rectangle x y w h) window = do

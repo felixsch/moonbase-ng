@@ -25,7 +25,6 @@ configure toConfigure configurator = snd <$> configureWith toConfigure configura
 configureWith :: c -> Configure c a -> Moon (a,c)
 configureWith toConfigure configurator = runStateT configurator toConfigure
 
-
 data Position = Top
               | Bottom
               | Custom Int

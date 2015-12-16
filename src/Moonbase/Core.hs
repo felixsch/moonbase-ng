@@ -1,9 +1,9 @@
+{-# LANGUAGE ExistentialQuantification  #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
-{-# LANGUAGE TemplateHaskell #-}
-{-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE MultiParamTypeClasses      #-}
+{-# LANGUAGE RankNTypes                 #-}
+{-# LANGUAGE TemplateHaskell            #-}
 
 module Moonbase.Core
   ( MoonbaseException(..)
@@ -24,7 +24,7 @@ module Moonbase.Core
   , isVerbose, cmd, args
 
   , Runtime(..)
-  , dbus, options, signals, terminal, actions
+  , dbus, options, signals, terminal, actions, theme
   , mkRuntime
 
   , MoonbaseAction(..)
@@ -41,26 +41,27 @@ module Moonbase.Core
   ) where
 
 --import DBus hiding (Message, Signal)
-import DBus.Client
+import           DBus.Client
 
-import Data.Maybe
-import qualified Data.Map as M
+import qualified Data.Map                            as M
+import           Data.Maybe
 
-import Control.Monad
-import Control.Monad.Reader
-import Control.Monad.State
+import           Control.Monad
+import           Control.Monad.Reader
+import           Control.Monad.State
 
-import Control.Lens
+import           Control.Lens
 --import Control.Applicative
-import Control.Monad.STM (atomically)
-import Control.Concurrent.STM.TVar
-import Control.Concurrent.STM.TQueue
-import Control.Concurrent
-import Control.Exception
+import           Control.Concurrent
+import           Control.Concurrent.STM.TQueue
+import           Control.Concurrent.STM.TVar
+import           Control.Exception
+import           Control.Monad.STM                   (atomically)
 
-import qualified System.Timeout as T
-import System.Environment.XDG.DesktopEntry
---import Data.Monoid
+import           System.Environment.XDG.DesktopEntry
+import qualified System.Timeout                      as T
+
+import           Moonbase.Theme
 
 type Name       = String
 type DBusClient = Client
@@ -82,7 +83,7 @@ instance (Monoid a) => Monoid (Moonbase st a) where
     mempty = return mempty
     mappend = liftM2 mappend
 
--- to make it easy to access runtime informations Moon is a instance of 
+-- to make it easy to access runtime informations Moon is a instance of
 -- MonadState.
 instance MonadState st (Moonbase st) where
     get = do
@@ -93,7 +94,7 @@ instance MonadState st (Moonbase st) where
         liftIO $ atomically $ writeTVar ref sta
 
 eval :: TVar st -> Moonbase st a -> IO a
-eval rt (Moonbase f) = runReaderT f rt 
+eval rt (Moonbase f) = runReaderT f rt
 
 fork :: Moonbase st () -> Moonbase st ()
 fork f = do
@@ -148,27 +149,28 @@ makeLenses ''Options
    moep .= dup
 
  trigger PromptAction "show" []
-  
+
 
 -}
 
 
 data MoonbaseAction st = MoonbaseAction
-  { _actionName  :: Name
-  , _actionHelp  :: String
-  , _action      :: [String] -> Moonbase st String }
-  
+  { _actionName :: Name
+  , _actionHelp :: String
+  , _action     :: [String] -> Moonbase st String }
+
 makeLenses ''MoonbaseAction
 
 
 data Runtime = Runtime
-  { _dbus     :: DBusClient
-  , _options  :: Options
+  { _dbus      :: DBusClient
+  , _options   :: Options
   , _preferred :: Maybe Preferred
 --  , _hooks    :: M.Map Name Hook
-  , _signals  :: TQueue Signal
-  , _terminal :: Maybe String -> Moonbase Runtime ()
-  , _actions  :: M.Map String (MoonbaseAction Runtime)
+  , _signals   :: TQueue Signal
+  , _terminal  :: Maybe String -> Moonbase Runtime ()
+  , _actions   :: M.Map String (MoonbaseAction Runtime)
+  , _theme     :: Theme
   }
 
 makeLenses ''Runtime
@@ -183,5 +185,4 @@ mkRuntime dbusClient opts term = do
     runtime <- atomically $ newTVar (new sigs)
     return (sigs, runtime)
   where
-    new sigs = Runtime dbusClient opts Nothing sigs term M.empty
-
+    new sigs = Runtime dbusClient opts Nothing sigs term M.empty defaultTheme
