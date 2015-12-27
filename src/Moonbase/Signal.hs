@@ -1,10 +1,10 @@
 module Moonbase.Signal where
 
-import Control.Lens
-import Control.Monad
-import Control.Concurrent.STM
+import           Control.Concurrent.STM
+import           Control.Lens
+import           Control.Monad
 
-import Moonbase.Core
+import           Moonbase.Core
 
 
 isDebug :: Bool

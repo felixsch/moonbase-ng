@@ -33,24 +33,24 @@ module Moonbase.Preferred
     , mimeOpenDocuments
     ) where
 
-import Control.Lens hiding ((<.>))
-import Prelude hiding (foldl)
-import Control.Monad.State
+import           Control.Lens                        hiding ((<.>))
+import           Control.Monad.State
+import           Prelude                             hiding (foldl)
 
-import System.Directory
-import System.FilePath.Posix
-import System.Environment.XDG.BaseDir
-import System.Environment.XDG.DesktopEntry hiding (Application)
-import System.Environment.XDG.MimeApps
+import           System.Directory
+import           System.Environment.XDG.BaseDir
+import           System.Environment.XDG.DesktopEntry hiding (Application)
+import           System.Environment.XDG.MimeApps
+import           System.FilePath.Posix
 
-import Data.Monoid
-import Data.Maybe
-import Data.Foldable
+import           Data.Foldable
+import           Data.Maybe
+import           Data.Monoid
 
-import qualified Data.Map as M
+import qualified Data.Map                            as M
 
-import Moonbase.Core
-import Moonbase.Signal
+import           Moonbase.Core
+import           Moonbase.Signal
 
 -- | A list of mimetypes
 data Mimetypes = Mimetypes [String]

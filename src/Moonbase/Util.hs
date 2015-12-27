@@ -1,7 +1,7 @@
 module Moonbase.Util
   ( Configure(..) , configure, configureWith
   , Position(..)
-  , parseColorTuple, clamp
+  , parseColorTuple, clamp, hex
   , lift, liftIO
   , pollForever, pollForever_
   ) where
