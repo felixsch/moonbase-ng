@@ -6,7 +6,7 @@ module Moonbase.Preferred
     , (==>)
     , makePreferred
     , userMimeApps
-    
+
     , mimeImage
     , mimeImageTypes
     , mimeImages
@@ -18,7 +18,7 @@ module Moonbase.Preferred
     , mimeVideo
     , mimeVideoTypes
     , mimeVideos
-    
+
     , mimeSource
     , mimeSourceTypes
     , mimeSources
@@ -27,11 +27,11 @@ module Moonbase.Preferred
     , mimeTextXml
     , mimeTextTxt
 
-    , mimeArchives 
+    , mimeArchives
     , mimePdf
     , mimeTorrent
     , mimeOpenDocuments
-    ) where 
+    ) where
 
 import Control.Lens hiding ((<.>))
 import Prelude hiding (foldl)
@@ -70,13 +70,13 @@ withPreferred prefs = preferred .= value
   where
       value = if null prefs
                  then Nothing
-                 else (Just $ makePreferred prefs)
+                 else Just $ makePreferred prefs
 
 -- | Generate a tuple of Mimetypes and a executable
 (==>) :: (Executable a) => Mimetypes -> a -> (Mimetypes, a)
 mime' ==> exec' = (mime', exec')
 
--- | Synonym for Map.fromList for preferred 
+-- | Synonym for Map.fromList for preferred
 makePreferred :: (Executable a) => [(Mimetypes, a)] -> Preferred
 makePreferred prefs = Preferred $ genMap prefs M.empty
 
@@ -95,7 +95,7 @@ userMimeApps
         dir <- getUserDataDir
         return $ dir </> "applications" </> "mimeapps.list"
 
--- | set preferred 
+-- | set preferred
 setPreferred' :: Moon ()
 setPreferred' = do
     preferred'   <- use preferred
@@ -111,7 +111,7 @@ setPreferred' = do
         update apps (Preferred m) = foldlMWithKey (updateMime ) apps m
 
         foldlMWithKey f z = foldlM (\z' (k,v) -> f z' k v) z . M.toAscList
-            
+
 
 
         desktopFileName exec' = do
@@ -136,13 +136,13 @@ loadMimeApps' = do
 
     exists <- liftIO $ doesFileExist (dir ++ "/applications/mimeapps.list")
 
-    if exists 
+    if exists
        then do
            say "Loading mimeapps file..."
            liftIO (loadMimeApps $ dir ++ "/applications/mimeapps.list")
            else
            say "MimeApps doesn't exists: creating newone"
-           >> return newMimeApps  
+           >> return newMimeApps
 
 -- | Create a new image/* mimetype
 mimeImage :: String -> Mimetypes
@@ -212,7 +212,7 @@ mimeTextXml  = Mimetypes ["application/xml"]
 
 -- | Common archive mimetypes
 mimeArchives :: Mimetypes
-mimeArchives = Mimetypes [ "application/x-gzip", "application/zip", 
+mimeArchives = Mimetypes [ "application/x-gzip", "application/zip",
                            "application/x-xz", "application/x-tar",
                            "application/x-rar-compressed",
                            "application/x-debian-package",

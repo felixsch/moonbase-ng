@@ -1,7 +1,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE TypeSynonymInstances #-}
 {-# LANGUAGE FlexibleInstances #-}
-module Moonbase.Util.Css 
+module Moonbase.Util.Css
   ( Scope(..)
   , Id(..)
   , combine, (&)
@@ -13,6 +13,7 @@ module Moonbase.Util.Css
 
 
 import Moonbase.Theme
+import Control.Applicative
 import Control.Monad.Writer
 
 import Data.List
@@ -100,7 +101,7 @@ prepareRule (Rule id sub) = withoutSubRules : concatMap apply subRules
 renderRule :: Rule -> String
 renderRule (Root childs)  = concatMap renderRule childs
 renderRule (Property k v) = k ++ ": " ++ v ++ ";"
-renderRule (Rule id subs) = renderId id ++ " {\n" 
+renderRule (Rule id subs) = renderId id ++ " {\n"
                                         ++ concatMap renderRule subs
                                         ++ "}\n"
 
@@ -128,8 +129,8 @@ css c = concatMap renderRule $ concatMap prepareRule (generate c)
 withCss :: (Gtk.WidgetClass widget, MonadIO m) => widget -> Css -> m ()
 withCss widget c = liftIO $ do
   name <- Gtk.widgetGetName widget :: IO String
-  
-  provider <- Gtk.cssProviderNew 
+
+  provider <- Gtk.cssProviderNew
   context  <- Gtk.widgetGetStyleContext widget
 
   Gtk.cssProviderLoadFromString provider $
@@ -166,5 +167,3 @@ border-style
 padding
 margin
 transition -}
-
-

@@ -35,4 +35,3 @@ fatal msg = signal $ SignalFatalError msg
 
 debug :: String -> Moon ()
 debug msg = when isDebug $ liftIO $ putStrLn $ "[DEBUG]: " ++ msg
-

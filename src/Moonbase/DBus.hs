@@ -1,7 +1,7 @@
-{-# LANGUAGE OverloadedStrings #-}
 {-# LANGUAGE ExistentialQuantification #-}
-{-# LANGUAGE TypeSynonymInstances #-}
-{-# LANGUAGE FlexibleInstances #-}
+{-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE OverloadedStrings         #-}
+{-# LANGUAGE TypeSynonymInstances      #-}
 
 module Moonbase.DBus
   ( moonbaseBusName
@@ -24,17 +24,18 @@ module Moonbase.DBus
   , withoutHelp
   ) where
 
-import Control.Monad.Reader
-import Control.Monad.State
-import Control.Lens
-import Control.Concurrent.STM.TVar
-import DBus.Client
-import DBus
+import           Control.Concurrent.STM.TVar
+import           Control.Lens
+import           Control.Monad.Reader
+import           Control.Monad.State
+import           DBus
+import           DBus.Client
 
-import Data.Char (toLower, toUpper)
-import qualified Data.Map as M
+import           Data.Char                   (toLower, toUpper)
+import qualified Data.Map                    as M
+import           Data.Maybe
 
-import Moonbase.Core
+import           Moonbase.Core
 
 moonbaseBusName :: BusName
 moonbaseBusName = "org.moonbase"
@@ -47,13 +48,13 @@ moonbaseObjectPath = "/org/moonbase"
 
 withInterface :: String -> InterfaceName
 withInterface name = interfaceName_ $
-    (formatInterfaceName moonbaseInterfaceName) ++ "." ++ name
+    formatInterfaceName moonbaseInterfaceName ++ "." ++ name
 
 withObjectPath :: String -> ObjectPath
-withObjectPath name = objectPath_ $ (formatObjectPath moonbaseObjectPath ) ++ "/" ++ name
+withObjectPath name = objectPath_ $ formatObjectPath moonbaseObjectPath ++ "/" ++ name
 
 
-type Ref = TVar Runtime 
+type Ref = TVar Runtime
 type DBusSignal = DBus.Signal
 
 dbusMethod :: ObjectPath -> (Ref -> [Method]) -> Moon ()
@@ -142,12 +143,8 @@ dbusM :: (MoonDBusMethod fn) => Ref -> InterfaceName -> MemberName -> fn -> Meth
 dbusM ref iface name f = method iface name inSig outSig mo
   where
     (typesIn, typesOut) = genFunTypes f
-    inSig               = case signature typesIn of
-                            Just sig -> sig
-                            Nothing  -> invalid "input"
-    outSig              = case signature typesOut of
-                            Just sig -> sig
-                            Nothing  -> invalid "ouput"
+    inSig               = fromMaybe (invalid "input") $ signature typesIn
+    outSig              = fromMaybe (invalid "output") $ signature typesOut
     mo msg              = case applyMethod ref f (methodCallBody msg) of
                             Nothing  -> return (replyError invalidParams [])
                             Just io -> fmap replyReturn io
@@ -165,7 +162,7 @@ toMethod :: Ref -> Action -> Method
 toMethod ref (MoonbaseAction name _ f) = dbusM ref (withInterface "Action") (memberName_ name) f
 
 runAction :: Action -> [String] -> Moon String
-runAction (MoonbaseAction _ _ f) args' = f args'
+runAction (MoonbaseAction _ _ f) = f
 
 class Nameable a where
   prepareName :: a -> (Name, Name)
@@ -185,7 +182,7 @@ on n help f = do
 
     dbusMethod (withObjectPath "Action") $ \ref -> map (toMethod ref . snd) allActions
   where
-    (name', key')   = prepareName n 
+    (name', key')   = prepareName n
     action'         = MoonbaseAction name' help f
 
 withoutHelp :: String
@@ -197,52 +194,3 @@ sanatizeName (' ':xs) = sanatizeName xs
 sanatizeName ('-':x:xs) = toUpper x : sanatizeName xs
 sanatizeName ('_':x:xs) = toUpper x : sanatizeName xs
 sanatizeName (x:xs)     = x : sanatizeName xs
-
-
-
-
-
-
-
-
-
-{-
-
-on "Quit" withoutHelp $ \args -> do
-  ..
-    ..
-      ..
-
-
- on "Quit" $ \args -> do
-   ...
-
- "Base" `grouped` 
- on "Quit" $ do
-  onGroup "Base" "Quit" 
-
- on "Quit" $ do
-
-
--}
-
-{-
-
-aAction = dbusMethod_ $ \ref -> [dbusM ref (withInterface "Test") (memberName_ "Quit") quitMoonbase]
-  where
-
-installAction :: ActionGroup -> Action -> Moon ()
-installAction group (Action aname helptext _) = actions . ix group . at aname ?= helptext
- 
-exportGroup :: ActionGroup -> [Action] -> Moon ()
-exportGroup group acts = do
-  actions' <- use actions
-  unless (isJust $ actions' ^? ix group) (actions . at group ?= M.empty)
-  
-  mapM_ (installAction group) acts
-
-  dbusMethod_ $ \ref -> map (actionToMethod ref group) acts
-
-
-on :: (AutoMethod fn) => Name -> String -> (Ref -> fn) -> Action
-on = Action  -}

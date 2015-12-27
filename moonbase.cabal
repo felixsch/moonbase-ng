@@ -94,7 +94,7 @@ library
     build-depends:
        xmonad            >= 0.11
      , xmonad-contrib    >= 0.11.3
-     , X11               >= 1.6.1.1
+     , X11               >= 1.6.1.2
      , utf8-string       >= 0.3.8
 
     other-modules:      Moonbase.WM.XMonad.Impl
@@ -149,7 +149,7 @@ executable moonbase
        xmonad            >= 0.11
      , xmonad-contrib    >= 0.11.3
      , utf8-string       >= 0.3.8
-     , X11               >= 1.6.1.1
+     , X11               >= 1.6.1.2
 
 test-suite test
   type:               exitcode-stdio-1.0
@@ -164,4 +164,4 @@ test-suite test
                       , xmonad            >= 0.11
                       , xmonad-contrib    >= 0.11.3
                       , utf8-string       >= 0.3.8
-                      , X11               >= 1.6.1.1
+                      , X11               >= 1.6.1.2

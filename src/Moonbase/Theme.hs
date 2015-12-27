@@ -36,7 +36,7 @@ module Moonbase.Theme
   , defaultColor
   ) where
 
-
+import           Control.Applicative
 import           Data.Char
 
 -- * Color & helpers

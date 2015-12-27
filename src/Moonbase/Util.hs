@@ -9,7 +9,6 @@ module Moonbase.Util
 import           Control.Concurrent  (forkIO, threadDelay)
 import           Control.Monad       (forever)
 import           Control.Monad.State
-
 import           Numeric             (readHex)
 
 import           Data.Char           (isHexDigit)
