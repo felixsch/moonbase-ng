@@ -3,30 +3,32 @@ module Moonbase.Panel.Items.DBus
   , xmonadLog )
   where
 
-import Control.Lens
+import           Control.Lens
 
-import qualified Graphics.UI.Gtk as Gtk
+import qualified Graphics.UI.Gtk   as Gtk
 
 import qualified DBus
-import qualified DBus.Client as DBus
+import qualified DBus.Client       as DBus
 
-import Moonbase.Panel
-import Moonbase.DBus
-import Moonbase.Util
-import Moonbase.Util.Gtk
+import           Moonbase.DBus
+import           Moonbase.Panel
+import           Moonbase.Util
+import           Moonbase.Util.Gtk
 
 
-dbusLabel :: String -> DBus.MatchRule -> PanelItems
+type DBusLabel = PanelItems IO
+
+dbusLabel :: String -> DBus.MatchRule -> DBusLabel
 dbusLabel name match = item $ do
-        label   <- liftIO $ Gtk.labelNew (Just "waiting for xmonad...")
+        label   <- io $ Gtk.labelNew (Just "waiting for xmonad...")
         lift $ dbusSignal match $ \signal -> do
             let Just str = DBus.fromVariant $ head (DBus.signalBody signal) :: Maybe String
-            liftIO $ Gtk.postGUISync $ Gtk.labelSetMarkup label str
+            io $ Gtk.postGUISync $ Gtk.labelSetMarkup label str
 
         return $ PanelItem name (Gtk.toWidget label) Gtk.PackNatural
 
 
-xmonadLog :: PanelItems
+xmonadLog :: DBusLabel
 xmonadLog = dbusLabel "xmonadLog" rule
     where
         rule      = DBus.matchAny

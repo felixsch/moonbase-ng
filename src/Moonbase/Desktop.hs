@@ -30,36 +30,36 @@ data Monitor = Monitor
 makeLenses ''Monitor
 
 type ScreenNum = Int
-data Screen = Screen
+data Screen m = Screen
   { _screenNum        :: ScreenNum
   , _screenResolution :: (Int, Int)
   , _screenMonitors   :: [Monitor]
   , _screenComposited :: Bool
   , _screenScreen     :: Gtk.Screen
-  , _screenConfigure  :: Configure Screen () }
+  , _screenConfigure  :: Configure (Screen m) m () }
 
 makeLenses ''Screen
 
 
-data DesktopState = DesktopState
-  { _desktopScreens :: [Screen]
+data DesktopState m = DesktopState
+  { _desktopScreens :: [Screen m]
   , _desktopDisplay :: Gtk.Display }
 
-type Desktop = TVar DesktopState
+type Desktop m = TVar (DesktopState m)
 
 makeLenses ''DesktopState
 
 
-initializeScreen :: Gtk.Display -> ScreenNum -> Moon Screen
+initializeScreen :: (Moon m) => Gtk.Display -> ScreenNum -> Moonbase m (Screen m)
 initializeScreen disp num = do
   debug $ "Initialize screen " ++ show num ++ "..."
 
-  screen      <- liftIO $ Gtk.displayGetScreen disp num
+  screen      <- io $ Gtk.displayGetScreen disp num
 
-  numMonitors <- liftIO $ Gtk.screenGetNMonitors screen
-  w           <- liftIO $ Gtk.screenGetWidth screen
-  h           <- liftIO $ Gtk.screenGetHeight screen
-  composited  <- liftIO $ Gtk.screenIsComposited screen
+  numMonitors <- io $ Gtk.screenGetNMonitors screen
+  w           <- io $ Gtk.screenGetWidth screen
+  h           <- io $ Gtk.screenGetHeight screen
+  composited  <- io $ Gtk.screenIsComposited screen
 
   debug $ "  :: " ++ show numMonitors ++ " assigned to this screen"
   monitors    <- mapM (initializeMonitor screen) [0..(numMonitors - 1)]
@@ -67,33 +67,33 @@ initializeScreen disp num = do
   return $ Screen num (w,h) monitors composited screen (return ())
 
 
-initializeMonitor :: Gtk.Screen -> MonitorNum -> Moon Monitor
+initializeMonitor :: (Moon m) => Gtk.Screen -> MonitorNum -> Moonbase m Monitor
 initializeMonitor screen num = do
   debug $ "Initialize monitor " ++ show num ++ "..."
 
-  rect   <- liftIO $ Gtk.screenGetMonitorGeometry screen num
-  window <- liftIO $ newMonitorWindow num screen rect
+  rect   <- io $ Gtk.screenGetMonitorGeometry screen num
+  window <- io $ newMonitorWindow num screen rect
 
   return $ Monitor num rect window
 
 
-withDesktop :: Configure DesktopState () -> Moon Desktop
+withDesktop :: (Moon m) => Configure (DesktopState m) m () -> Moonbase m (Desktop m)
 withDesktop conf = do
   debug "with basic Desktop..."
 
-  disp       <- checkDisplay =<< liftIO Gtk.displayGetDefault
-  numScreens <- liftIO $ Gtk.displayGetNScreens disp
+  disp       <- checkDisplay =<< io Gtk.displayGetDefault
+  numScreens <- io $ Gtk.displayGetNScreens disp
 
   debug $ "  :: " ++ show numScreens ++ " screens available"
   screens    <- mapM (initializeScreen disp) [0..(numScreens - 1)]
 
   let state = DesktopState screens disp
 
-  state' <- configure state conf
+  state' <- lift $ configure state conf
 
   showDesktops state'
 
-  liftIO $ atomically $ newTVar state'
+  io $ atomically $ newTVar state'
 
     -- TODO:
     -- Add displayClosed handling
@@ -103,18 +103,18 @@ withDesktop conf = do
 
 
 
-showDesktops :: DesktopState -> Moon ()
+showDesktops :: (Moon m) => (DesktopState m) -> Moonbase m ()
 showDesktops state = do
   let windows  = state ^.. allMonitors . traverse . monitorWindow
 
-  forM_ windows $ \w -> liftIO $ do
+  forM_ windows $ \w -> io $ do
     Gtk.widgetQueueDraw w
     Gtk.widgetShowAll w
       where
     allMonitors = desktopScreens . traverse . screenMonitors
 
 
-onEveryScreen :: Configure Screen () -> Configure DesktopState ()
+onEveryScreen :: (Moon m) => Configure (Screen m) m () -> Configure (DesktopState m) m ()
 onEveryScreen conf = do
   lift $ debug "running on every screen"
 
@@ -127,10 +127,11 @@ onEveryScreen conf = do
   desktopScreens .= screens'
 
   where
+    configure' :: (Moon m) => Screen m -> Configure (DesktopState m) m (Screen m)
     configure' s = lift $ configure s conf
 
 
-onEveryMonitor :: Configure Monitor () -> Configure DesktopState ()
+onEveryMonitor :: (Moon m) => Configure Monitor m () -> Configure (DesktopState m) m ()
 onEveryMonitor conf = onEveryScreen $ do
   lift $ debug "running on every monitor..."
 
@@ -144,7 +145,7 @@ onEveryMonitor conf = onEveryScreen $ do
     configure' m = lift $ configure m conf
 
 
-setBackgroundColor :: Color -> Configure Monitor ()
+setBackgroundColor :: (Moon m) => Color -> Configure Monitor m ()
 setBackgroundColor c = do
   window                   <- use monitorWindow
   num                      <- use monitorNum
@@ -152,17 +153,17 @@ setBackgroundColor c = do
 
   lift $ debug $ "Setting Color of Monitor " ++ show num ++ " to " ++ c
 
-  image <- liftIO $ do
+  image <- io $ do
     buf   <- Gtk.pixbufNew Gtk.ColorspaceRgb False 8 w h
     Gtk.pixbufFill buf r g b 255
     Gtk.imageNewFromPixbuf buf
 
-  liftIO $ Gtk.containerAdd window image
+  io $ Gtk.containerAdd window image
     where
     (r,g,b,_) = parseColorTuple c :: (Word8, Word8, Word8, Word8)
 
 
-setWallpaper :: FilePath -> Configure Monitor ()
+setWallpaper :: (Moon m) => FilePath -> Configure Monitor m ()
 setWallpaper path = do
   window                  <- use monitorWindow
   num                     <- use monitorNum
@@ -170,11 +171,11 @@ setWallpaper path = do
 
   lift $ debug $ "Setting Wallpaper of Monitor " ++ show num ++ " to " ++ path
 
-  image <- liftIO $ do
+  image <- io $ do
     pixbuf <- Glib.catchGErrorJustDomain (wallpaper w h) (errorPixBuf w h)
     Gtk.imageNewFromPixbuf pixbuf
 
-  liftIO $ Gtk.containerAdd window image
+  io $ Gtk.containerAdd window image
 
   where
     wallpaper w h       = Gtk.pixbufNewFromFileAtScale path w h False
@@ -212,8 +213,8 @@ newMonitorWindow i screen (Gtk.Rectangle x y w h) = do
     size :: Maybe (Int, Int)
     size = Just (w, h)
 
-setComposited :: Gtk.Display -> Screen -> Moon Screen
+setComposited :: (Moon m) => Gtk.Display -> jkScreen m -> Moonbase m (Screen m)
 setComposited disp screen = do
-   screen'     <- liftIO $ Gtk.displayGetScreen disp $ _screenNum screen
-   composited  <- liftIO $ Gtk.screenIsComposited screen'
+   screen'     <- io $ Gtk.displayGetScreen disp $ _screenNum screen
+   composited  <- io $ Gtk.screenIsComposited screen'
    return $ screen { _screenComposited = composited }

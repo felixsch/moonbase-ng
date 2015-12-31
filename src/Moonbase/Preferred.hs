@@ -65,7 +65,7 @@ mime :: String -> Mimetypes
 mime t = Mimetypes [t]
 
 -- | Appends the preferred types to the moonbase configuration
-withPreferred :: (Executable a) => [(Mimetypes, a)] -> Moon ()
+withPreferred :: (Moon m, Executable a) => [(Mimetypes, a)] -> Moonbase m ()
 withPreferred prefs = preferred .= value
   where
       value = if null prefs
@@ -89,57 +89,53 @@ genMap ((Mimetypes xt, exec') : xs) m = genMap xs $ addEachMime exec' xt m
       addEachMime exec'' (y:ys) m' = addEachMime exec'' ys $ M.insert y exec'' m'
 
 -- | get mimeapps files
-userMimeApps :: IO FilePath
+userMimeApps :: (Moon m) => m FilePath
 userMimeApps
     = do
-        dir <- getUserDataDir
+        dir <- io getUserDataDir
         return $ dir </> "applications" </> "mimeapps.list"
 
 -- | set preferred
-setPreferred' :: Moon ()
+setPreferred' :: (Moon m) => Moonbase m ()
 setPreferred' = do
     preferred'   <- use preferred
     mimeApps     <- loadMimeApps'
     case preferred' of
          Nothing    -> return ()
          Just prefs -> do
-             path     <- liftIO $ userMimeApps
+             path     <- io userMimeApps
              mimeApps' <- update mimeApps prefs
-             liftIO $ saveMimeApps path mimeApps'
+             io $ saveMimeApps path mimeApps'
 
     where
-        update apps (Preferred m) = foldlMWithKey (updateMime ) apps m
-
+        update apps (Preferred m) = foldlMWithKey updateMime apps m
         foldlMWithKey f z = foldlM (\z' (k,v) -> f z' k v) z . M.toAscList
 
-
-
         desktopFileName exec' = do
-            userDir <- liftIO $ getUserDataDir
+            userDir <- io getUserDataDir
             return $ userDir </> "applications" </> execGetName exec' <.> "desktop"
 
         updateMime mimeApps' mime' exec' = do
-            entryExists <- liftIO $ findEntry (execGetName exec')
+            entryExists <- io $ findEntry (execGetName exec')
 
             when (isNothing entryExists) $ do
                    path <- desktopFileName exec'
-                   liftIO $ saveEntry $
+                   io $ saveEntry $
                      newBasicApplication path (execGetName exec') (execGetPath exec')
 
             return $ addDefault mime' (execGetName exec' <.> "desktop") mimeApps'
 
 -- | load existing mimeApps file
-loadMimeApps' :: Moon MimeApps
+loadMimeApps' :: (Moon m) => Moonbase m MimeApps
 loadMimeApps' = do
-    dir <- liftIO getUserDataDir
-    liftIO $ createDirectoryIfMissing True (dir ++ "/applications")
+    dir <- io getUserDataDir
+    io $ createDirectoryIfMissing True (dir ++ "/applications")
 
-    exists <- liftIO $ doesFileExist (dir ++ "/applications/mimeapps.list")
-
+    exists <- io $ doesFileExist (dir ++ "/applications/mimeapps.list")
     if exists
        then do
            say "Loading mimeapps file..."
-           liftIO (loadMimeApps $ dir ++ "/applications/mimeapps.list")
+           io (loadMimeApps $ dir ++ "/applications/mimeapps.list")
            else
            say "MimeApps doesn't exists: creating newone"
            >> return newMimeApps

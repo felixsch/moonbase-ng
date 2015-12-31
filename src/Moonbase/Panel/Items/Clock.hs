@@ -2,29 +2,29 @@ module Moonbase.Panel.Items.Clock
   ( clock, clockWith
   ) where
 
-import Control.Monad
-import Control.Applicative
-import Control.Concurrent
+import           Control.Applicative
+import           Control.Concurrent
+import           Control.Monad
 
-import qualified Graphics.UI.Gtk as Gtk
+import qualified Graphics.UI.Gtk     as Gtk
 
-import Data.Time.Format
-import Data.Time.LocalTime
+import           Data.Time.Format
+import           Data.Time.LocalTime
 
-import Moonbase.Panel
-import Moonbase.Theme
-import Moonbase.DBus
-import Moonbase.Util
-import Moonbase.Util.Gtk
+import           Moonbase.DBus
+import           Moonbase.Panel
+import           Moonbase.Theme
+import           Moonbase.Util
+import           Moonbase.Util.Gtk
 
-clock :: String -> PanelItems
+clock :: (Moon m) => String -> PanelItems m
 clock fmt = item $ do
-        label <- liftIO $ createClockWidget fmt 1 Nothing
+        label <- io $ createClockWidget fmt 1 Nothing
         return $ PanelItem "date" (Gtk.toWidget label) Gtk.PackNatural
 
-clockWith :: String -> Int -> Color -> PanelItems
+clockWith :: (Moon m) => String -> Int -> Color -> PanelItems m
 clockWith fmt poll color = item $ do
-        label <- liftIO $ createClockWidget fmt poll (Just color)
+        label <- io $ createClockWidget fmt poll (Just color)
         return $ PanelItem "dateWith" (Gtk.toWidget label) Gtk.PackNatural
 
 createClockWidget :: String -> Int -> Maybe Color -> IO Gtk.Label

@@ -35,7 +35,7 @@ data Cpu = CpuAll
          | CpuCore Int
 
 instance Show Cpu where
-  show (CpuAll)    = "cpuAll"
+  show CpuAll      = "cpuAll"
   show (CpuCore i) = "core" ++ show i
 
 data CpuStat = CpuStat
@@ -48,18 +48,18 @@ data CpuStat = CpuStat
   , cpuSoftIRQ :: Int
   , cpuSteal   :: Int } deriving (Show)
 
-type CpuBar = PanelItems
+type CpuBar m = PanelItems m
 
-cpuBar :: Cpu -> Int -> BarConfig -> CpuBar
+cpuBar :: (Moon m) => Cpu -> Int -> BarConfig -> CpuBar m
 cpuBar cpu ms conf = item $ do
-  bar <- liftIO $ barNew conf
-  i   <- liftIO $ readStat cpu
+  bar <- io $ barNew conf
+  i   <- io $ readStat cpu
   runCpuBar cpu ms i bar
   return $ PanelItem (show cpu ++ "Bar") (Gtk.toWidget bar) Gtk.PackNatural
 
-cpuBarWithLabel :: Cpu -> Int -> BarConfig -> CpuBar
+cpuBarWithLabel :: (Moon m) => Cpu -> Int -> BarConfig -> CpuBar m
 cpuBarWithLabel cpu ms conf = item $ do
-  box <- liftIO $ do
+  box <- io $ do
     box   <- Gtk.hBoxNew False 2
     bar   <- barNew conf
     label <- Gtk.labelNew (Just "0%")
@@ -86,8 +86,8 @@ cpuBarWithLabel cpu ms conf = item $ do
   return $ PanelItem (show cpu ++ "Bar") (Gtk.toWidget box) Gtk.PackNatural
 
 
-runCpuBar :: (MonadIO m) => Cpu -> Int -> CpuStat -> Bar -> m ()
-runCpuBar cpu ms i bar = liftIO $ pollForever 0 i $ \p -> do
+runCpuBar :: (Moon m) => Cpu -> Int -> CpuStat -> Bar -> m ()
+runCpuBar cpu ms i bar = pollForever 0 i $ \p -> do
     a <- readStat cpu
     threadDelay (ms * 1000)
     b <- readStat cpu

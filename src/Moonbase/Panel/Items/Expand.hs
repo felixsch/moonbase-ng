@@ -4,27 +4,31 @@ module Moonbase.Panel.Items.Expand
 
 import qualified Graphics.UI.Gtk as Gtk
 
-import Moonbase.Panel
-import Moonbase.Util
+import           Moonbase.Panel
+import           Moonbase.Util
 
-expandR :: Maybe String -> PanelItems
+type Expander m = PanelItems m
+
+
+expandR :: (Moon m) => Maybe String -> Expander m
 expandR mlabel = item $ do
-  label <- liftIO $ Gtk.labelNew mlabel
+  label <- io $ Gtk.labelNew mlabel
   return $ PanelItem "spacer-right" (Gtk.toWidget label) Gtk.PackGrow
 
-(-->) :: PanelItems -> PanelItems -> PanelItems
+
+(-->) :: (Moon m) => PanelItems m -> PanelItems m -> PanelItems m
 (PanelItems a) --> (PanelItems b) = PanelItems $ a ++ spacer ++ b
   where
     (PanelItems spacer) = expandR Nothing
 
 
-expandL :: Maybe String -> PanelItems
+expandL :: (Moon m) => Maybe String -> Expander m
 expandL mlabel = item $ do
-  label <- liftIO $ Gtk.labelNew mlabel
+  label <- io $ Gtk.labelNew mlabel
   return $ PanelItem "spacer-left" (Gtk.toWidget label) Gtk.PackGrow
 
-(<--) :: PanelItems -> PanelItems -> PanelItems 
+
+(<--) :: (Moon m) => PanelItems m -> PanelItems m -> PanelItems m
 (PanelItems a) <-- (PanelItems b) = PanelItems $ a ++ spacer ++ b
   where
-    (PanelItems spacer) = expandL Nothing
-
+    (PanelItems spacer) = expandL

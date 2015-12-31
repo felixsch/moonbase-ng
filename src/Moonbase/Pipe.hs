@@ -2,38 +2,35 @@ module Moonbase.Pipe
   ( Pipe(..)
   , mkPipe
   , push
-  , loopP, foreverP 
+  , loopP, foreverP
   ) where
 
 
-import Control.Monad                (when)
-import Control.Concurrent.STM       (atomically)
-import Control.Concurrent.STM.TChan
+import           Control.Applicative
+import           Control.Concurrent.STM       (atomically)
+import           Control.Concurrent.STM.TChan
+import           Control.Monad                (when)
 
-import Moonbase.Core
+import           Moonbase.Core
 
 
 data Pipe a = Pipe (TChan a)
 
-mkPipe :: Moon (Pipe a)
-mkPipe = Pipe <$> liftIO newBroadcastTChanIO
+mkPipe :: (Moon m) => Moonbase m (Pipe a)
+mkPipe = Pipe <$> io newBroadcastTChanIO
 
-push :: Pipe a -> a -> Moon ()
-push (Pipe chan) = liftIO . atomically . writeTChan chan
+push :: (Moon m) => Pipe a -> a -> Moonbase m ()
+push (Pipe chan) = io . atomically . writeTChan chan
 
-loopP :: Pipe a -> (a -> Moon Bool) -> Moon ()
+loopP :: (Moon m) => Pipe a -> (a -> Moonbase m Bool) -> Moonbase m ()
 loopP (Pipe broadcast) f = do
-    chan <- liftIO $ atomically (dupTChan broadcast)
+    chan <- io $ atomically (dupTChan broadcast)
     loop chan
   where
     loop chan = do
-      value <- liftIO $ atomically (readTChan chan)
+      value <- io $ atomically (readTChan chan)
       next <- f value
       when next $ loop chan
 
-foreverP :: Pipe a -> (a -> Moon ()) -> Moon ()
+foreverP :: (Moon m) => Pipe a -> (a -> Moonbase m ()) -> Moonbase m ()
 foreverP pipe f = loopP pipe (\a -> f a >> return True)
-
-
-  
-

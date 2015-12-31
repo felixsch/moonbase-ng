@@ -84,7 +84,7 @@ barNew initc = do
   _ <- Gtk.on bar Gtk.draw $ do
     value  <- liftIO $ Gtk.get bar barValue
     config <- liftIO $ Gtk.get bar barConfig
-    sizes  <- widgetGetSize bar
+    sizes  <- liftIO $ widgetGetSize bar
     void $ if barOrientation config == HorizontalBar
             then drawHorizontalBar sizes config value
             else drawVerticalBar sizes config value

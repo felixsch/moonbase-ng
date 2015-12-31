@@ -1,6 +1,6 @@
+
 module Moonbase.Util
-  ( Configure(..) , configure, configureWith
-  , Position(..)
+  ( Position(..)
   , parseColorTuple, clamp, hex
   , lift, liftIO
   , pollForever, pollForever_
@@ -15,14 +15,6 @@ import           Data.Char           (isHexDigit)
 
 import           Moonbase.Core
 import           Moonbase.Theme      (Color, defaultColor)
-
-type Configure c a = StateT c (Moonbase Runtime) a
-
-configure :: c -> Configure c () -> Moon c
-configure toConfigure configurator = snd <$> configureWith toConfigure configurator
-
-configureWith :: c -> Configure c a -> Moon (a,c)
-configureWith toConfigure configurator = runStateT configurator toConfigure
 
 data Position = Top
               | Bottom
@@ -56,13 +48,13 @@ clamp (r,g,b,a) = (cl r, cl g, cl b, cl a)
   where
     cl x = fromIntegral x / 255.0
 
-pollForever_ :: Int -> IO () -> IO ()
-pollForever_ ms f = void $ forkIO $ forever $ f >> threadDelay (ms * 1000)
+pollForever_ :: (Moon m) => Int -> m () -> m ()
+pollForever_ ms f = void $ fork $ forever $ f >> io (threadDelay (ms * 1000))
 
-pollForever :: Int -> a -> (a -> IO a) -> IO ()
-pollForever ms i f = void $ forkIO $ void $ loop i
+pollForever :: (Moon m) => Int -> a -> (a -> m a) -> m ()
+pollForever ms i f = void $ fork $ void $ loop i
   where
     loop a = do
       a' <- f a
-      threadDelay (ms * 1000)
+      io $ threadDelay (ms * 1000)
       loop a'

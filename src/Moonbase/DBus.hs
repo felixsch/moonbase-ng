@@ -1,5 +1,6 @@
 {-# LANGUAGE ExistentialQuantification #-}
 {-# LANGUAGE FlexibleInstances         #-}
+{-# LANGUAGE MultiParamTypeClasses     #-}
 {-# LANGUAGE OverloadedStrings         #-}
 {-# LANGUAGE TypeSynonymInstances      #-}
 
@@ -54,24 +55,24 @@ withObjectPath :: String -> ObjectPath
 withObjectPath name = objectPath_ $ formatObjectPath moonbaseObjectPath ++ "/" ++ name
 
 
-type Ref = TVar Runtime
+type Ref m = TVar (Runtime m)
 type DBusSignal = DBus.Signal
 
-dbusMethod :: ObjectPath -> (Ref -> [Method]) -> Moon ()
+dbusMethod :: (Moon m) => ObjectPath -> (Ref m -> [Method]) -> Moonbase m ()
 dbusMethod objPath generator = do
   client <- view dbus <$> get
   ref    <- ask
-  liftIO $ export client objPath $ generator ref
+  io $ export client objPath $ generator ref
 
-dbusMethod_ :: (Ref -> [Method]) -> Moon ()
+dbusMethod_ :: (Moon m) => (Ref m -> [Method]) -> Moonbase m ()
 dbusMethod_ = dbusMethod moonbaseObjectPath
 
-dbusSignal :: MatchRule -> (DBusSignal -> Moon ()) -> Moon SignalHandler
+dbusSignal :: MatchRule -> (DBusSignal -> Moonbase IO ()) -> Moonbase IO SignalHandler
 dbusSignal match cmd' = do
     client <- view dbus <$>  get
     ref <- ask
-    liftIO $ addMatch client match $ \sig ->
-      eval ref (cmd' sig)
+    io $ addMatch client match $ \sig ->
+      evalWith_ ref (cmd' sig)
 
 autoM_ :: AutoMethod fn => MemberName -> fn -> Method
 autoM_ = autoMethod moonbaseInterfaceName
@@ -79,46 +80,46 @@ autoM_ = autoMethod moonbaseInterfaceName
 autoM :: AutoMethod fn => InterfaceName -> MemberName -> fn -> Method
 autoM = autoMethod
 
-wrap0 :: Ref -> Moon b -> IO b
-wrap0 = eval
+wrap0 :: (Moon m) => Ref m -> Moonbase m b -> m b
+wrap0 = eval'
 
-wrap1 :: (IsValue a0) => Ref -> (a0 -> Moon b) -> a0 -> IO b
-wrap1 ref f arg0 = eval ref (f arg0)
+wrap1 :: (Moon m, IsValue a0) => Ref m -> (a0 -> Moonbase m b) -> a0 -> m b
+wrap1 ref f arg0 = eval' ref (f arg0)
 
-wrap2 :: (IsValue a0, IsValue a1) => Ref -> (a0 -> a1 -> Moon b) -> a0 -> a1 -> IO b
-wrap2 ref f arg0 arg1 = eval ref (f arg0 arg1)
+wrap2 :: (Moon m, IsValue a0, IsValue a1) => Ref m -> (a0 -> a1 -> Moonbase m b) -> a0 -> a1 -> m b
+wrap2 ref f arg0 arg1 = eval' ref (f arg0 arg1)
 
-wrap3 :: (IsValue a0, IsValue a1, IsValue a2) => Ref -> (a0 -> a1 -> a2 -> Moon b) -> a0 -> a1 -> a2 -> IO b
-wrap3 ref f arg0 arg1 arg2 = eval ref (f arg0 arg1 arg2)
+wrap3 :: (Moon m, IsValue a0, IsValue a1, IsValue a2) => Ref m -> (a0 -> a1 -> a2 -> Moonbase m b) -> a0 -> a1 -> a2 -> m b
+wrap3 ref f arg0 arg1 arg2 = eval' ref (f arg0 arg1 arg2)
 
-wrap4 :: (IsValue a0, IsValue a1, IsValue a2, IsValue a3) => Ref -> (a0 -> a1 -> a2 -> a3 -> Moon b) -> a0 -> a1 -> a2 -> a3 -> IO b
-wrap4 ref f arg0 arg1 arg2 arg3 = eval ref (f arg0 arg1 arg2 arg3)
+wrap4 :: (Moon m, IsValue a0, IsValue a1, IsValue a2, IsValue a3) => Ref m -> (a0 -> a1 -> a2 -> a3 -> Moonbase m b) -> a0 -> a1 -> a2 -> a3 -> m b
+wrap4 ref f arg0 arg1 arg2 arg3 = eval' ref (f arg0 arg1 arg2 arg3)
 
 
 
 class MoonDBusMethod fn where
   genFunTypes :: fn -> ([Type], [Type])
-  applyMethod :: Ref -> fn -> [Variant] -> Maybe (IO [Variant])
+  applyMethod :: Ref IO -> fn -> [Variant] -> Maybe (IO [Variant])
 
 
-instance MoonDBusMethod (Moon ()) where
+instance MoonDBusMethod (Moonbase IO ()) where
   genFunTypes _ = ([], [])
 
   applyMethod ref f [] = Just (eval ref f >> return [])
   applyMethod _   _ _  = Nothing
 
 
-instance (IsValue a) => MoonDBusMethod (Moon a) where
+instance (IsValue a) => MoonDBusMethod (Moonbase IO a) where
   genFunTypes f = ([], case moonT f undefined of
                          (_, t) -> case t of
                                      TypeStructure ts -> ts
                                      _                -> [t])
     where
-      moonT :: IsValue a => Moon a -> a -> (a, Type)
+      moonT :: IsValue a => Moonbase IO a -> a -> (a, Type)
       moonT _ a = (a, typeOf a)
 
   applyMethod ref f [] = Just (do
-                    var <- fmap toVariant (eval ref f)
+                    var <- fmap toVariant (evalWith' ref f)
                     case fromVariant var of
                       Just struct -> return (structureItems struct)
                       Nothing -> return [var])
@@ -139,7 +140,7 @@ instance (IsValue a, MoonDBusMethod fn) => MoonDBusMethod (a -> fn) where
 
 
 
-dbusM :: (MoonDBusMethod fn) => Ref -> InterfaceName -> MemberName -> fn -> Method
+dbusM :: (MoonDBusMethod fn) => Ref IO -> InterfaceName -> MemberName -> fn -> Method
 dbusM ref iface name f = method iface name inSig outSig mo
   where
     (typesIn, typesOut) = genFunTypes f
@@ -158,10 +159,10 @@ dbusM ref iface name f = method iface name inSig outSig mo
                           , label
                           , " signature."])
 
-toMethod :: Ref -> Action -> Method
+toMethod :: Ref IO -> Action IO -> Method
 toMethod ref (MoonbaseAction name _ f) = dbusM ref (withInterface "Action") (memberName_ name) f
 
-runAction :: Action -> [String] -> Moon String
+runAction :: (Moon m) => Action m -> [String] -> Moonbase m String
 runAction (MoonbaseAction _ _ f) = f
 
 class Nameable a where
@@ -175,7 +176,7 @@ instance Nameable Name where
 instance Nameable (Name, Name) where
   prepareName (n, a) = (n, a)
 
-on :: (Nameable a) => a -> String -> ([String] -> Moon String) -> Moon ()
+on :: (Nameable a) => a -> String -> ([String] -> Moonbase IO String) -> Moonbase IO ()
 on n help f = do
     actions . at key' ?= action'
     allActions <- M.toList <$> use actions

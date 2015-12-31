@@ -11,7 +11,8 @@ Some helper function to complete Gtk's functionality
 -}
 
 module Moonbase.Util.Gtk
- ( iosync
+ ( liftIO
+ , iosync
  , ioasync
  , withDisplay
  , pangoColor
@@ -43,22 +44,20 @@ import           Moonbase.Util
 import           Moonbase.Util.StrutProperties
 
 
-withDisplay :: (Gtk.Display -> Moon a) -> Moon a
+withDisplay :: (Moon m) => (Gtk.Display -> Moonbase m a) -> Moonbase m a
 withDisplay f = do
-    disp <- liftIO Gtk.displayGetDefault
+    disp <- io Gtk.displayGetDefault
     case disp of
          Just d  -> f d
-         Nothing -> do
-           fatal "Could not open display!"
-           liftIO $ throw CouldNotOpenDisplay
+         Nothing -> throw CouldNotOpenDisplay
 
 
 -- | Wrapper arroung liftIO . Gtk.postGUISync
-iosync :: (MonadIO m) => IO a -> m a
-iosync = liftIO . Gtk.postGUISync
+iosync :: (Moon m) => IO a -> m a
+iosync = io . Gtk.postGUISync
 
-ioasync :: (MonadIO m) => IO () -> m ()
-ioasync = liftIO . Gtk.postGUIAsync
+ioasync :: (Moon m) => IO () -> m ()
+ioasync = io . Gtk.postGUIAsync
 
 -- | Applys pango color formatting to a 'String'
 pangoColor :: String -> String -> String
@@ -168,16 +167,16 @@ setStyle w name settings = do
         ++ "}"
 
 
-checkDisplay :: Maybe Gtk.Display -> Moon Gtk.Display
-checkDisplay Nothing     = fatal "Could not open display" >> error "Could not open display"
+checkDisplay :: (Moon m) => Maybe Gtk.Display -> Moonbase m Gtk.Display
+checkDisplay Nothing     = throw CouldNotOpenDisplay
 checkDisplay (Just disp) = return disp
 
-widgetGetSize :: (Gtk.WidgetClass o, MonadIO m, Num a) => o -> m (a, a)
+widgetGetSize :: (Gtk.WidgetClass o, Moon m, Num a) => o -> m (a, a)
 widgetGetSize chart = do
-  area <- liftIO $ Gtk.widgetGetWindow chart
+  area <- io $ Gtk.widgetGetWindow chart
   case area of
        Nothing  -> return (0,0)
        Just win -> do
-          w <- liftIO $ Gtk.drawWindowGetWidth win
-          h <- liftIO $ Gtk.drawWindowGetHeight win
+          w <- io $ Gtk.drawWindowGetWidth win
+          h <- io $ Gtk.drawWindowGetHeight win
           return (fromIntegral w, fromIntegral h)

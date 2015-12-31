@@ -2,21 +2,22 @@ module Moonbase.Panel.Items.Tray
   ( systemTray
   ) where
 
-import Control.Monad
-import Control.Applicative
+import           Control.Applicative
+import           Control.Monad
 
-import qualified Graphics.UI.Gtk as Gtk
+import qualified Graphics.UI.Gtk                  as Gtk
 import qualified Graphics.UI.Gtk.Misc.TrayManager as Gtk
 
-import Moonbase.Panel
-import Moonbase.DBus
-import Moonbase.Util
-import Moonbase.Util.Gtk
+import           Moonbase.DBus
+import           Moonbase.Panel
+import           Moonbase.Util
+import           Moonbase.Util.Gtk
 
+type SystemTray m = PanelItems m
 
-systemTray :: PanelItems
+systemTray :: (Moon m) => SystemTray m
 systemTray = item $ do
-  trayBox <- liftIO $ do
+  trayBox <- io $ do
     box         <- Gtk.hBoxNew False 5
     trayManager <- Gtk.trayManagerNew
     Just screen <- Gtk.screenGetDefault

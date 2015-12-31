@@ -142,9 +142,9 @@ data PanelItem = PanelItem
 makeLenses ''PanelItem
 
 -- | PanelItems is the container type for every Panel Item
-data PanelItems = PanelItems [Configure PanelState PanelItem]
+data (Moon m) => PanelItems m = PanelItems [Configure PanelState m PanelItem]
 
-instance Monoid PanelItems where
+instance (Moon m) => Monoid (PanelItems m) where
     mempty  = PanelItems []
     mappend (PanelItems a) (PanelItems b) = PanelItems (a ++ b)
 
@@ -157,7 +157,7 @@ instance Monoid PanelItems where
 -- >   label <- liftIO $ Gtk.labelNew (Just "sample")
 -- >   return $ PanelItem "nameOfTheItemInCamelCase" (Gtk.toWidget label) Gtk.PackNatural
 --
-item :: Configure PanelState PanelItem -> PanelItems
+item :: (Moon m) => Configure PanelState m PanelItem -> PanelItems
 item gen = PanelItems [gen]
 
 
@@ -173,17 +173,17 @@ makeLenses ''PanelState
 type Panel = TVar PanelState
 
 -- | create a new panel. It preconfigures a panel configuration which can be changed
-withPanel :: (PanelConfig -> PanelConfig) -> PanelItems -> Moon Panel
+withPanel :: (Moon m) => (PanelConfig -> PanelConfig) -> PanelItems m -> Moonbase m Panel
 withPanel cf (PanelItems items) = do
   config <- (cf . defaultPanelConfig) <$> use theme
   let name = panelName config
   let mode = panelMode config
 
   withDisplay $ \display -> do
-    (size, screen) <- liftIO $ getMode display mode
-    window         <- liftIO Gtk.windowNew
+    (size, screen) <- io $ getMode display mode
+    window         <- io Gtk.windowNew
 
-    liftIO $ do
+    io $ do
       Gtk.widgetSetName     window name
       Gtk.windowSetScreen   window screen
       Gtk.windowSetTypeHint window Gtk.WindowTypeHintDock
@@ -203,7 +203,7 @@ withPanel cf (PanelItems items) = do
 
       setPanelSize config size window
 
-    box <- liftIO $ Gtk.hBoxNew False 2
+    box <- io $ Gtk.hBoxNew False 2
 
     withCss window $ do
       bgColor $ panelBgColor config
@@ -213,20 +213,20 @@ withPanel cf (PanelItems items) = do
       sequence items
 
     forM_ items $ \(PanelItem n w p) ->
-      liftIO $ Gtk.boxPackStart box w p 0
+      io $ Gtk.boxPackStart box w p 0
 
     on (sanatizeName name, name) withoutHelp $ \(action:_) ->
       case action of
         "show" -> do
-          liftIO $ Gtk.widgetShow window
+          io $ Gtk.widgetShow window
           pure $ "showing " ++ name
         "hide" -> do
-          liftIO $ Gtk.widgetHide window
+          io $ Gtk.widgetHide window
           pure $ "hiding " ++ name
         _      -> pure "Panel commands: show/hide"
 
 
-    liftIO $ do
+    io $ do
       Gtk.containerAdd window box
       Gtk.widgetShowAll window
       atomically $ newTVar $ panel { _panelItems = items }

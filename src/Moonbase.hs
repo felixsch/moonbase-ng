@@ -20,8 +20,8 @@ import           Control.Monad
 import           Control.Monad.STM              (atomically)
 --import Control.Concurrent.STM.TVar
 import qualified Config.Dyre                    as Dy
-import           Control.Concurrent.STM.TQueue
 import           Control.Concurrent             (forkOS)
+import           Control.Concurrent.STM.TQueue
 
 import           Options.Applicative            hiding (action)
 --import Options.Applicative.Types
@@ -43,16 +43,16 @@ import           Data.Time.LocalTime
 import           DBus                           hiding (Signal, signal)
 import           DBus.Client
 
-import qualified Graphics.UI.Gtk as Gtk
+import qualified Graphics.UI.Gtk                as Gtk
 
-import           Moonbase.Signal
-import           Moonbase.Util
+import           Moonbase.Application
 import           Moonbase.Core
 import           Moonbase.DBus
+import           Moonbase.Desktop
 import           Moonbase.Pipe
 import           Moonbase.Preferred
-import           Moonbase.Application
-import           Moonbase.Desktop
+import           Moonbase.Signal
+import           Moonbase.Util
 
 
 type DyreStartup = (Maybe String, Terminal, Moon ())
@@ -120,7 +120,7 @@ formatMessage message = do
     date <- formatTime defaultTimeLocale rfc822DateFormat <$> getZonedTime
     return $ "[" ++ date ++ "] " ++ message
 
-basicActions :: Moon ()
+basicActions :: Moonbase IO ()
 basicActions = do
     on "Quit" helpQuit $ \_ -> do
         signal SignalShutdown
@@ -131,7 +131,7 @@ basicActions = do
       return $ unlines $ map toLine (M.toList actions')
 
     on ("RunAction", "run-action") helpRunAction $ \(name:args') -> do
-      liftIO $ putStrLn $ "Running action: " ++ name
+      debug $ "[run-action] calling action: " ++ name
       actions' <- use actions
       case actions' ^? ix name of
         Nothing -> return $ "Command `" ++ name ++ "` not found."
@@ -150,15 +150,15 @@ basicActions = do
     helpListActions = "Lists all available actions. Use list-actions <group> if you want only a list about a action group"
     helpRunAction   = "Run a action"
 
-    toLine (key, (MoonbaseAction _ help' _)) = key ++ " - " ++ help'
+    toLine (key, (Action _ help' _)) = key ++ " - " ++ help'
 
 
-runMoonbase :: Options -> Terminal -> Moon () -> IO ()
+runMoonbase :: Options -> Terminal -> Moonbase IO () -> IO ()
 runMoonbase opts term moon = do
 
     putStrLn "Starting moonbase..."
     setupHomeDirectory
-    
+
     putStrLn "Opening log..."
     handle <- openLog
     putStrLn "Start dbus..."
@@ -167,11 +167,11 @@ runMoonbase opts term moon = do
     (sigs,runtime) <- mkRuntime client opts term
 
     putStrLn "Run basic actions and user implementation..."
-    liftIO $ Gtk.initGUI
+    io Gtk.initGUI
     eval runtime (basicActions >> moon)
-    liftIO $ forkOS Gtk.mainGUI
+    io $ forkOS Gtk.mainGUI
     loop sigs runtime handle
-    liftIO $ Gtk.mainQuit
+    io Gtk.mainQuit
     return ()
   where
     loop sigs rt hdl = do
@@ -201,7 +201,7 @@ runMoonbaseAction name args' = do
 
     let (Just reply') = fromVariant (methodReturnBody reply !! 0)
 
-    return $ if (not $ null reply') 
+    return $ if (not $ null reply')
                 then Just reply'
                 else Nothing
 

@@ -9,7 +9,7 @@ Portability : POSIX
 Helpers to easily run external applications or execute DesktopEntry files
 -}
 
-module Moonbase.Application 
+module Moonbase.Application
     ( Application(..)
     , Argument
     , app
@@ -19,15 +19,16 @@ module Moonbase.Application
     , spawn
     ) where
 
-import Control.Monad.Except
-import System.FilePath.Posix
-import System.Environment.XDG.BaseDir
-import System.Environment.XDG.DesktopEntry hiding (Application)
-import System.Environment.XDG.MimeApps
-import System.Process (spawnProcess, ProcessHandle)
-import System.Directory (findExecutable)
+import           Control.Monad.Except
+import           System.Directory                    (findExecutable)
+import           System.Environment.XDG.BaseDir
+import           System.Environment.XDG.DesktopEntry hiding (Application)
+import           System.Environment.XDG.MimeApps
+import           System.FilePath.Posix
+import           System.Process                      (ProcessHandle,
+                                                      spawnProcess)
 
-import Moonbase.Core
+import           Moonbase.Core
 
 -- | An argument
 type Argument = String
@@ -49,16 +50,15 @@ instance Executable Application where
 
 
 -- | Search if a executable exists
-findExecPath :: (MonadIO m) => Application -> m (Maybe FilePath)
-findExecPath (Application app _) = liftIO $ findExecutable app
+findExecPath :: (Moon m) => Application -> m (Maybe FilePath)
+findExecPath (Application app _) = io $ findExecutable app
 
 -- | Spawns a application
-spawn :: (MonadIO m) =>  Application -> m (Maybe ProcessHandle)
+spawn :: (Moon m) =>  Application -> m (Maybe ProcessHandle)
 spawn a@(Application app args) = do
         exec <- findExecPath a
-        case exec of 
+        case exec of
          Nothing -> return Nothing
          Just e -> do
-                    hdl <- liftIO $ spawnProcess e args
+                    hdl <- io $ spawnProcess e args
                     return $ Just hdl
-
