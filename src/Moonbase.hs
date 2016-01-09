@@ -6,11 +6,6 @@ module Moonbase
   , module Moonbase.Core
   , module Moonbase.DBus
   , module Moonbase.Pipe
-  , module Moonbase.Preferred
-  , module Moonbase.Desktop
-  , module Moonbase.Application
-  , module Moonbase.Util
-  , runMoonbaseAction
   ) where
 
 import           Control.Applicative
@@ -21,10 +16,8 @@ import           Control.Monad.STM              (atomically)
 --import Control.Concurrent.STM.TVar
 import qualified Config.Dyre                    as Dy
 import           Control.Concurrent             (forkOS)
+import Control.Concurrent.STM.TVar
 import           Control.Concurrent.STM.TQueue
-
-import           Options.Applicative            hiding (action)
---import Options.Applicative.Types
 
 
 import           System.Directory
@@ -45,15 +38,67 @@ import           DBus.Client
 
 import qualified Graphics.UI.Gtk                as Gtk
 
-import           Moonbase.Application
 import           Moonbase.Core
 import           Moonbase.DBus
-import           Moonbase.Desktop
-import           Moonbase.Pipe
-import           Moonbase.Preferred
-import           Moonbase.Signal
-import           Moonbase.Util
 
+
+-- [ real world implementation ]------------------------------------------------
+
+instance Moon IO where
+  io      = id
+  puts    = putStrLn
+  content = readFile
+  fork    = forkIO
+  timeout = T.timeout
+
+instance Base (Runtime IO) where
+  data BaseRef (Runtime IO) = TVar (Runtime IO)
+  newBase = io . newTVarIO
+  base    = io . readTVarIO
+  update  = io . atomically . flip writeTVar
+
+  logM rt msg = do
+    handle  <- view hdl <$> base rt
+    verbose <- view isVerbose <$> base rt
+    date    <- formatDate
+    io . hPutStrLn handle ("[" ++ date ++ "] " ++ show msg)
+    when verbose $ puts (show msg)
+
+  getDBus ref = view dbus <$> base rt
+
+  addAction ref name action = do
+    runtime <- base rt
+    update rt (actions . at name ?~ action $ runtime)
+
+
+formatDate :: (Moon m) => m String
+formatDate = io $ formatTime defaultTimeLocale rfc822DateFormat <$> getZonedTime
+
+class Base rt where
+  data BaseRef rt :: *
+  newBase :: (Moon m) => rt -> m (BaseRef rt)
+  base :: (Moon m) => BaseRef rt -> m rt
+  update :: (Moon m) => BaseRef rt -> rt -> m ()
+
+  logB  :: (Moon m) => BaseRef rt -> Message -> m ()
+  dbusB :: (Moon m) => BaseRef rt -> m DBusClient
+
+  addActionB :: (Moon m) => BaseRef rt -> String -> Action rt m -> Moonbase st m ()
+  allActionsB :: (Moon m) => BaseRef rt -> Moonbase st m [Action rt m]
+
+
+class Monad mMoon m where
+  io      :: IO a -> m a
+  puts    :: String -> m ()
+  content :: FilePath -> m String
+  fork    :: m () -> m ThreadId
+  timeout :: Int -> m a  -> m (Maybe a)
+formatMessage :: String -> IO String
+formatMessage message = do
+    date <- formatTime defaultTimeLocale rfc822DateFormat <$> getZonedTime
+    return $ "[" ++ date ++ "] " ++ message
+
+-- [ dyre setup ]---------------------------------------------------------------
 
 type DyreStartup = (Maybe String, Terminal, Moon ())
 
@@ -67,24 +112,7 @@ moonbase term moon = Dy.wrapMain params (Nothing, term, moon)
     , Dy.ghcOpts     = ["-threaded", "-Wall"]
     , Dy.includeCurrentDirectory = True }
 
-
-parseOptions :: IO Options
-parseOptions = execParser full
-  where
-    full    = info (helper <*> opts) ( fullDesc <>
-                                          progDesc "moonbase managament tool" <>
-                                          header "moonbase - A desktop environment" )
-    opts = Options
-      <$> switch (  long "verbose"
-                 <> help "Print verbose messages to stdout" )
-      <*> strArgument (  metavar "ACTION"
-                      <> help actionHelp'
-                      <> value "start" )
-      <*> many (argument str (  metavar "ARGS..."
-                             <> help argsHelp))
-
-    argsHelp    ="Arguments for a action. Show action help by help ACTION"
-    actionHelp' = "Run specified action. Show all commands available with list-actions"
+-- [ runtime creation ]---------------------------------------------------------
 
 getHome :: IO FilePath
 getHome = (</>) <$> getUserConfigDir <*> pure "moonbase"
@@ -93,8 +121,8 @@ setupHomeDirectory :: IO ()
 setupHomeDirectory = do
   dir <- getHome
   exists <- doesDirectoryExist dir
-
   unless exists $ createDirectory dir
+
 
 -- | Opens the log file
 openLog :: IO Handle
@@ -114,11 +142,8 @@ startDBus = do
             NamePrimaryOwner -> return client
             _                -> error "Connection to Session Bus failed. Name allready in use"
 
+-- [ core actions ]-------------------------------------------------------------
 
-formatMessage :: String -> IO String
-formatMessage message = do
-    date <- formatTime defaultTimeLocale rfc822DateFormat <$> getZonedTime
-    return $ "[" ++ date ++ "] " ++ message
 
 basicActions :: Moonbase IO ()
 basicActions = do
@@ -189,21 +214,6 @@ runMoonbase opts term moon = do
         hPutStrLn stderr message >> hFlush stderr
 
       loop s r h
-
-
-runMoonbaseAction :: Name -> [String] -> IO (Maybe String)
-runMoonbaseAction name args' = do
-    client <- connectSession
-
-    reply <- call_ client (methodCall (withObjectPath "Action") (withInterface "Action") (memberName_ "RunAction"))
-      { methodCallDestination = Just moonbaseBusName
-      , methodCallBody        = [toVariant (name:args')] }
-
-    let (Just reply') = fromVariant (methodReturnBody reply !! 0)
-
-    return $ if (not $ null reply')
-                then Just reply'
-                else Nothing
 
 realMoonbase :: DyreStartup -> IO ()
 realMoonbase (Just err, _, _)    = putStrLn $ "Could not load moonbase: " ++ err

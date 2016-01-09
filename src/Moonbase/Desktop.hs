@@ -77,7 +77,7 @@ initializeMonitor screen num = do
   return $ Monitor num rect window
 
 
-withDesktop :: (Moon m) => Configure (DesktopState m) m () -> Moonbase m (Desktop m)
+withDesktop :: (Moon m) => Configure (DesktopState m) (Moonbase m) () -> Moonbase m (Desktop m)
 withDesktop conf = do
   debug "with basic Desktop..."
 
@@ -89,7 +89,7 @@ withDesktop conf = do
 
   let state = DesktopState screens disp
 
-  state' <- lift $ configure state conf
+  state' <- configure state conf
 
   showDesktops state'
 

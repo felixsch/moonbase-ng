@@ -17,28 +17,40 @@ flag withXMonad
 library
   exposed-modules:    Moonbase
                     , Moonbase.Core
+                    , Moonbase.CLI
                     , Moonbase.DBus
-                    , Moonbase.Pipe
-                    , Moonbase.Theme
-                    , Moonbase.Application
-                    , Moonbase.Desktop
-                    , Moonbase.Util.Gtk
-                    , Moonbase.Util.Cairo
-                    , Moonbase.Util.Css
-                    , Moonbase.Panel
-                    , Moonbase.Panel.Items
-                    , Moonbase.Panel.Items.Expand
-                    , Moonbase.Panel.Items.DBus
-                    , Moonbase.Panel.Items.Tray
-                    , Moonbase.Panel.Items.Clock
-                    , Moonbase.Panel.Items.Cpu
-                    , Moonbase.Util.Widget.Chart
-                    , Moonbase.Util.Widget.Bar
+-- step 1
+--                  , Moonbase.Theme
+--                  , Moonbase.Application
+--                  , Moonbase.Util
+-- step 2
+--                  , Moonbase.Desktop
+--                  , Moonbase.Util.Gtk
+--                  , Moonbase.Util.Cairo
+--                  , Moonbase.Util.Css
+-- step 3
+--                  , Moonbase.WM
+--                  , Moonbase.WM.XMonad
+--                  , Moonbase.WM.OpenBox
+--                  , Moonbase.WM.I3
+-- step 4
+--                    , Moonbase.Panel
+--                    , Moonbase.Panel.Items
+--                    , Moonbase.Panel.Items.Expand
+--                    , Moonbase.Panel.Items.DBus
+--                    , Moonbase.Panel.Items.Tray
+--                    , Moonbase.Panel.Items.Clock
+-- step 5
+--
+--                    , Moonbase.Panel.Items.Cpu
+--                    , Moonbase.Util.Widget.Chart
+--                    , Moonbase.Util.Widget.Bar
 --                    Moonbase.Component
 --                    Moonbase.Pipe
 --                    Moonbase.Application
 --                    Moonbase.Item
 
+--                  , Moonbase.Pipe
 --                    Moonbase.WindowManager
 --                    Moonbase.Theme
 --                    Moonbase.Panel

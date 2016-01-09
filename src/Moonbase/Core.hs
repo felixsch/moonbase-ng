@@ -1,11 +1,40 @@
 {-# LANGUAGE ExistentialQuantification  #-}
---{-# LANGUAGE FlexibleInstances          #-}
+{-# LANGUAGE FlexibleInstances          #-}
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE MultiParamTypeClasses      #-}
--- {-# LANGUAGE RankNTypes                 #-}
+--{-# LANGUAGE RankNTypes                 #-}
 {-# LANGUAGE TemplateHaskell            #-}
+{-# LANGUAGE TypeFamilies               #-}
 
 module Moonbase.Core
+ ( Exception(..)
+ , Moon(..)
+ , Base(..)
+ , Moonbase(..)
+ , moon
+ , eval
+ , Message(..)
+
+ , DBusClient
+ , Argument
+
+ , Action(..)
+ , actionName, actionHelp, action
+ , ActionError(..)
+ , ActionResult(..)
+ , actionResult
+ , actionError
+ , actionNothing
+
+ , Runtime(..)
+ , hdl, actions, theme, dbus, isVerbose
+
+ -- re-imports
+ , get, put, modify
+ , ask
+ , E.throw
+ ) where
+{-
   ( Exception(..)
   , Moonbase(..)
   , liftMoon
@@ -41,6 +70,7 @@ module Moonbase.Core
   , get, put, ask
   , getBase
   ) where
+-}
 
 import           Control.Applicative
 import           Control.Concurrent
@@ -56,25 +86,186 @@ import           Control.Monad.STM                   (atomically)
 import qualified Data.Map                            as M
 import           Data.Maybe
 import           Data.Monoid
-import           DBus.Client
+import qualified DBus
+import qualified DBus.Client                         as DBus
 import           System.Environment.XDG.DesktopEntry
+import           System.IO
 import qualified System.Timeout                      as T
 
 import           Moonbase.Theme
 
+-- Core Types ------------------------------------------------------------------
 
--- | Name of a service
-type Name       = String
-
--- | A Dbus Connection
-type DBusClient = Client
+type DBusClient = DBus.Client
 
 data Exception = CouldNotOpenDisplay
-               | FileNotFound
+               | DBusError String
+               | FileNotFound FilePath
                | Shutdown
-  deriving (Show)
+               deriving (Show)
 
 instance E.Exception Exception
+
+data Message = Warning    -- ^ A warning
+             | Info       -- ^ An information
+             | Success    -- ^ Successfully exectued action
+             | Debug      -- ^ Debuging output
+             deriving (Show, Eq, Enum)
+
+
+class Monad m => Moon m where
+  io      :: IO a -> m a
+  puts    :: String -> m ()
+  content :: FilePath -> m String
+  fork    :: m () -> m ThreadId
+  timeout :: Int -> m a  -> m (Maybe a)
+
+class Base rt where
+  data BaseRef rt :: *
+  newBase :: (Moon m) => rt -> m (BaseRef rt)
+  base :: (Moon m) => BaseRef rt -> m rt
+  update :: (Moon m) => BaseRef rt -> rt -> m ()
+
+  logB  :: (Moon m) => BaseRef rt -> Message -> m ()
+  dbusB :: (Moon m) => BaseRef rt -> m DBusClient
+
+  addActionB :: (Moon m) => BaseRef rt -> String -> Action rt m -> Moonbase st m ()
+  allActionsB :: (Moon m) => BaseRef rt -> Moonbase st m [Action rt m]
+
+
+
+-- Actions ---------------------------------------------------------------------
+
+type Argument = String
+data ActionError = ActionNotFound
+                  | ActionFileNotFound
+                  | ActionError String
+                  deriving (Show)
+
+type ActionResult = Either ActionError (Maybe String)
+
+actionError :: ActionError -> ActionResult
+actionError = Left
+
+actionResult :: (Show a) => a -> ActionResult
+actionResult = Right . Just . show
+
+actionNothing :: ActionResult
+actionNothing = Right Nothing
+
+data Action rt m = Action
+  { _actionName :: String
+  , _actionHelp :: String
+  , _action     :: [Argument] -> Moonbase rt m ActionResult }
+
+
+-- Runtime ---------------------------------------------------------------------
+
+data Runtime m = Runtime
+ { _hdl       :: Handle
+ , _actions   :: [Action (Runtime m) m]
+ , _theme     :: Theme
+ , _isVerbose :: Bool
+ , _dbus      :: DBusClient }
+
+
+-- Moonbase --------------------------------------------------------------------
+
+newtype (Base rt) => Moonbase rt m a = Moonbase (ReaderT (BaseRef rt) m a)
+  deriving (Functor, Monad, MonadReader (BaseRef rt))
+
+moon :: (Moon m, Base rt) => m a -> Moonbase rt m a
+moon = Moonbase . lift
+
+instance (Monad m) => Applicative (Moonbase rt m) where
+  pure  = return
+  (<*>) = ap
+
+instance (Moon m, Base rt) => MonadState rt (Moonbase rt m) where
+  get = base =<< ask
+  put rt = do
+    ref <- ask
+    update ref rt
+
+instance (Base rt, Moon m) => Moon (Moonbase rt m) where
+  io      = moon . io
+  puts    = moon . puts
+  content = moon . content
+  fork f  = do
+    ref <- ask
+    moon $ fork (void $ eval ref f)
+  timeout s f = do
+    ref <- ask
+    moon $ timeout s (eval ref f)
+
+
+eval :: (Base rt, Moon m) => BaseRef rt -> Moonbase rt m a -> m a
+eval ref (Moonbase f) = runReaderT f ref
+
+makeLenses ''Action
+makeLenses ''Runtime
+
+
+
+
+  {-
+dbusPPOutput :: DBusClient -> String -> IO ()
+dbusPPOutput client str = DBus.emit client signal'
+    where
+        signal'   = (DBus.signal path interface member) { DBus.signalBody = [body] }
+        path      = DBus.objectPath_ "/org/moonbase/XMonadLog"
+        interface = DBus.interfaceName_ "org.moonbase.XMonadLog"
+        member    = DBus.memberName_ "Update"
+        body      = DBus.toVariant $ Utf8.decodeString str
+  xon       ::  (XMoon m) => ([Argument] -> XMoonbase rt m XActionResult) -> XMoonbase rt m ()
+  xcallback ::  (XMoon m) => (Signal -> XMoonbase rt m ()) -> XMoonbase rt m ()
+-}
+
+{-
+
+  CLI
+[]   - action ausfuehren
+[]   - moonbase starten
+[]   - moonbase stoppen (via action)
+
+  SESSION
+[]   - logging
+[]   - actions
+[]   - power management
+[]   - xrandr / udev lid closed
+[]   - autostart
+[]   + on docking station
+
+
+  FUNCTIONS
+[]    - wm
+[]      - xmonad
+[]      - moonbase
+[]      + xcompmgr
+[]    - notify daemon
+[]    - panel
+[]      - panel items
+[]        - clock
+[]        - expander
+[]        - dbus
+[]           - generic log
+[]           - xmonad
+[]           - messages
+[]        - shell
+[]           - plain
+[]           - simple syntax
+        - bar vert / horiz
+          - cpu
+          - mem
+          - net
+          - disk
+        - systemtray
+        - power buttons
+-}
+
+
+{-
+type Name = String
 
 
 -- | Message types used in the message channel. Look in Moonbase.Signal for more
@@ -92,12 +283,14 @@ data Signal = SignalMessage Message String  -- ^ signal a message
 class Monad m => Moon m where
   io      :: IO a -> m a
   puts    :: String -> m ()
+  content :: FilePath -> m String
   fork    :: m () -> m ThreadId
   timeout :: Int -> m a  -> m (Maybe a)
 
 instance Moon IO where
   io      = id
   puts    = putStrLn
+  content = readFile
   fork    = forkIO
   timeout = T.timeout
 
@@ -125,6 +318,7 @@ instance (Moon m, Monoid a) => Monoid (Moonbase m a) where
 instance (Moon m) => Moon (Moonbase m) where
   io      = liftMoon . io
   puts    = liftMoon . puts
+  content = liftMoon . content
   fork f  = do
     ref <- ask
     liftMoon $ fork (evalWith_ ref f)
@@ -178,6 +372,7 @@ liftConfigure = Configure . lift
 instance (Moon m) => Moon (Configure c m) where
   io      = liftConfigure . io
   puts    = liftConfigure . puts
+  content = liftConfigure . content
   fork f  = do
     st <- get
     liftConfigure (fork $ void $ configure st f)
@@ -278,4 +473,4 @@ type Terminal m = (Maybe String -> Moonbase m ())
 
 makeLenses ''Action
 makeLenses ''Options
-makeLenses ''Runtime
+makeLenses ''Runtime -}

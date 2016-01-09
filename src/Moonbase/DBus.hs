@@ -5,6 +5,7 @@
 {-# LANGUAGE TypeSynonymInstances      #-}
 
 module Moonbase.DBus
+{-
   ( moonbaseBusName
   , moonbaseInterfaceName
   , moonbaseObjectPath
@@ -24,37 +25,129 @@ module Moonbase.DBus
   , on
   , withoutHelp
   ) where
+-}
+where
 
-import           Control.Concurrent.STM.TVar
+import qualified Control.Exception as E
 import           Control.Lens
-import           Control.Monad.Reader
-import           Control.Monad.State
-import           DBus
-import           DBus.Client
+import           Control.Monad
+import qualified DBus
+import qualified DBus.Client       as DBus
 
-import           Data.Char                   (toLower, toUpper)
-import qualified Data.Map                    as M
+import           Data.Char         (toLower, toUpper)
+import qualified Data.Map          as M
 import           Data.Maybe
 
 import           Moonbase.Core
 
-moonbaseBusName :: BusName
+type Call     = (DBus.ObjectPath, DBus.InterfaceName, DBus.MemberName)
+type Signal   = String
+type Help     = String
+
+class (Base rt) => Com rt where
+  call     ::  (Moon m) => Call -> [DBus.Variant] -> Moonbase rt m [DBus.Variant]
+  call     = defaultCall
+
+  call_    ::  (Moon m) => Call -> [DBus.Variant] -> Moonbase rt m ()
+  call_    = defaultCall_
+
+  on       ::  (Moon m, Nameable a) => a -> Help -> ([Argument] -> Moonbase rt m ActionResult) -> Moonbase rt m ()
+  on       = defaultOn
+
+  callback ::  (Moon m) => (Signal -> Moonbase rt m ()) -> Moonbase rt m ()
+  callback = defaultCallback
+
+class Nameable a where
+  prepareName :: a -> (String, String)
+
+instance Nameable String where
+  prepareName n = (sanatizeName n, lower)
+    where
+      lower = map toLower n
+
+instance Nameable (String, String) where
+  prepareName (n, a) = (sanatizeName n, a)
+
+withoutHelp :: String
+withoutHelp = "No help is available."
+
+sanatizeName :: String -> String
+sanatizeName []       = []
+sanatizeName (' ':xs) = sanatizeName xs
+sanatizeName ('-':x:xs) = toUpper x : sanatizeName xs
+sanatizeName ('_':x:xs) = toUpper x : sanatizeName xs
+sanatizeName (x:xs)     = x : sanatizeName xs
+
+
+moonbaseBusName :: DBus.BusName
 moonbaseBusName = "org.moonbase"
 
-moonbaseInterfaceName :: InterfaceName
+moonbaseInterfaceName :: DBus.InterfaceName
 moonbaseInterfaceName = "org.moonbase"
 
-moonbaseObjectPath :: ObjectPath
+moonbaseObjectPath :: DBus.ObjectPath
 moonbaseObjectPath = "/org/moonbase"
 
-withInterface :: String -> InterfaceName
-withInterface name = interfaceName_ $
-    formatInterfaceName moonbaseInterfaceName ++ "." ++ name
+withInterface :: String -> DBus.InterfaceName
+withInterface name = DBus.interfaceName_ $
+    DBus.formatInterfaceName moonbaseInterfaceName ++ "." ++ name
 
-withObjectPath :: String -> ObjectPath
-withObjectPath name = objectPath_ $ formatObjectPath moonbaseObjectPath ++ "/" ++ name
+withObjectPath :: String -> DBus.ObjectPath
+withObjectPath name = DBus.objectPath_ $ DBus.formatObjectPath moonbaseObjectPath ++ "/" ++ name
+
+defaultCall :: (Moon m, Base rt) => Call -> [DBus.Variant] -> Moonbase rt m [DBus.Variant]
+defaultCall call args = do
+    ref <- ask
+    client <- dbusB ref
+    reply <- io $ E.catch (DBus.call_ client method) $ \e ->
+      E.throw (DBusError (DBus.clientErrorMessage e))
+    return $ DBus.methodReturnBody reply
+    where
+      method = (DBus.methodCall path interface member) {
+        DBus.methodCallBody = args
+        -- FIXME: Add destination
+      }
+      (path, interface, member) = call
+
+defaultCall_ :: (Moon m, Base rt, Com rt) => Call -> [DBus.Variant] -> Moonbase rt m ()
+defaultCall_ c args = void $ call c args
 
 
+getRt :: (Moon m, Base rt) => Moonbase rt m (BaseRef rt)
+getRt = ask
+
+defaultOn :: (Moon m, Base rt, Nameable a) => a -> Help -> ([Argument] -> Moonbase rt m ActionResult) -> Moonbase rt m ()
+defaultOn name help f = do
+    ref <- getRt
+    addActionB ref key' $ Action name' help f
+
+    allActions <- allActionsB ref
+    dbus       <- dbusB =<< ask
+
+    io $ DBus.export dbus (withObjectPath "Action") $
+      map (actionToMethod ref) allActions
+  where
+    (name', key') = prepareName name
+    actionToMethod ref (Action name _ f) = DBus.method (withInterface "Action") (DBus.memberName_ name) inSig outSig (evalAction ref f)
+    inSig  = DBus.signature_ [DBus.TypeArray DBus.TypeString]
+    outSig = DBus.signature_ [DBus.TypeString]
+
+evalAction :: (Moon m, Base rt) => BaseRef rt -> ([Argument] -> Moonbase rt m ActionResult) -> DBus.MethodCall -> IO DBus.Reply
+evalAction ref f call = do
+    let (Just args) = DBus.fromVariant $ head (DBus.methodCallBody call)
+    eval ref $ do
+      result <- f args
+      return $ case result of
+        -- TODO: Add daemon side error logging
+        Left err       -> DBus.replyError (DBus.errorName_ (show err)) []
+        Right (Just r) -> DBus.replyReturn [DBus.toVariant r]
+        Right Nothing  -> DBus.replyReturn []
+
+defaultCallback :: (Moon m) => (Signal -> Moonbase rt m ()) -> Moonbase rt m ()
+defaultCallback = undefined
+
+
+{-
 type Ref m = TVar (Runtime m)
 type DBusSignal = DBus.Signal
 
@@ -195,3 +288,4 @@ sanatizeName (' ':xs) = sanatizeName xs
 sanatizeName ('-':x:xs) = toUpper x : sanatizeName xs
 sanatizeName ('_':x:xs) = toUpper x : sanatizeName xs
 sanatizeName (x:xs)     = x : sanatizeName xs
+-}
